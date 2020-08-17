@@ -26,6 +26,7 @@
 
 #pragma once
 
+#include <AK/AATree.h>
 #include <AK/OwnPtr.h>
 #include <AK/RefPtr.h>
 #include <AK/String.h>
@@ -34,151 +35,36 @@
 
 namespace AK {
 
-class RopeNode : public RefCounted<RopeNode> {
-public:
-    template<typename... Args>
-    static NonnullRefPtr<RopeNode> construct(Args... args) { return adopt(*new RopeNode(move(args)...)); }
-
-    RopeNode()
-        : RopeNode("")
-    {
-    }
-
-    RopeNode(const StringView& text)
-        : m_type(Type::String)
-        , m_string(text)
-    {
-    }
-
-    RopeNode(RefPtr<RopeNode> left, RefPtr<RopeNode> right)
-        : m_type(Type::Append)
-        , m_left(move(left))
-        , m_right(move(right))
-    {
-        update_length();
-    }
-
-    ~RopeNode();
-
-    void remove(size_t start, size_t length);
-    void insert(const StringView&, size_t offset);
-
-    NonnullRefPtr<RopeNode> slice(size_t start, size_t length);
-    NonnullRefPtr<RopeNode> slice(size_t start);
-
-    NonnullRefPtr<RopeNode> leaf(size_t offset) const;
-    char at(size_t) const;
-    ALWAYS_INLINE auto operator[](size_t i) const { return at(i); }
-
-    ALWAYS_INLINE const RefPtr<RopeNode>& left() const { return m_left; }
-    ALWAYS_INLINE const RefPtr<RopeNode>& right() const { return m_right; }
-    ALWAYS_INLINE const String& string() const { return m_string; }
-    ALWAYS_INLINE String& string() { return m_string; }
-
-    void dump(Bytes) const;
-
-    ALWAYS_INLINE size_t length() const { return is_append() ? m_length : m_string.length(); }
-
-    ALWAYS_INLINE bool is_append() const { return m_type == Type::Append; }
-
-private:
-    RefPtr<RopeNode>& left() { return m_left; }
-    RefPtr<RopeNode>& right() { return m_right; }
-
-    size_t level() const { return m_level; }
-
-    void rebalance_if_needed();
-    void rebalance();
-    void update_length();
-    void sanity_check() const
-    {
-        if (is_append()) {
-            ASSERT(m_left && m_right);
-        } else {
-            ASSERT(!m_left && !m_right);
-        }
-    }
-
-    enum class Type {
-        Append,
-        String,
-    } m_type { Type::String };
-
-    RefPtr<RopeNode> m_left;
-    RefPtr<RopeNode> m_right;
-    size_t m_length { 0 };
-    size_t m_level { 1 };
-
-    String m_string;
+struct RopeData {
+    char data[64];
+    size_t length { 0 };
 };
 
-class Rope {
+class Rope : public AATree<RopeData> {
 public:
     Rope() { }
 
-    Rope(const Rope& other);
-    Rope(Rope&& other);
     Rope(const StringView& string);
 
-    Rope& operator=(const Rope& other)
+    size_t length() const
     {
-        m_root = other.m_root;
-        return *this;
+        TODO();
     }
 
-    Rope& operator=(Rope&& other)
+    void remove(size_t, size_t)
     {
-        m_root = move(other.m_root);
-        return *this;
+        TODO();
     }
 
-    size_t length() const { return m_root ? m_root->length() : 0; }
+    void insert(const StringView& string, size_t offset);
 
-    void remove(size_t start, size_t length)
+    char at(size_t) const
     {
-        ASSERT(m_root);
-        m_root->remove(start, length);
-    }
-
-    void insert(const StringView& string, size_t offset)
-    {
-        if (m_root)
-            m_root->insert(string, offset);
-        else if (offset == 0) {
-            m_root = RopeNode::construct(string);
-        } else {
-            ASSERT_NOT_REACHED();
-        }
-    }
-
-    Rope slice(size_t start, size_t length) const
-    {
-        ASSERT(m_root);
-        return { m_root->slice(start, length) };
-    }
-
-    Rope slice(size_t start) const
-    {
-        ASSERT(m_root);
-        return { m_root->slice(start) };
-    }
-
-    char at(size_t i) const
-    {
-        ASSERT(m_root);
-        return m_root->at(i);
+        TODO();
     }
     auto operator[](size_t i) const { return at(i); }
 
     String to_string() const;
-
-private:
-    Rope(NonnullRefPtr<RopeNode> root)
-        : m_root(move(root))
-    {
-    }
-
-    mutable RefPtr<RopeNode> m_root;
 };
 
 }
