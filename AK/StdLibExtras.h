@@ -509,6 +509,39 @@ constexpr auto DependentFalse = false;
 
 }
 
+#ifdef __serenity__
+namespace std {
+
+struct destroying_delete_t {
+    explicit destroying_delete_t() = default;
+};
+
+inline constexpr destroying_delete_t destroying_delete {};
+
+}
+#else
+#    include <new>
+#endif
+
+namespace AK {
+
+template<typename T>
+class HeapAllocated {
+protected:
+    constexpr ~HeapAllocated() = default;
+
+public:
+    void operator delete(void*) = delete;
+    void operator delete(HeapAllocated<T>* self, std::destroying_delete_t)
+    {
+        static_cast<T*>(self)->~T();
+        self->~HeapAllocated();
+        ::operator delete(self);
+    }
+};
+
+}
+
 using AK::AddConst;
 using AK::array_size;
 using AK::ceil_div;
@@ -518,6 +551,7 @@ using AK::declval;
 using AK::DependentFalse;
 using AK::exchange;
 using AK::forward;
+using AK::HeapAllocated;
 using AK::is_trivial;
 using AK::is_trivially_copyable;
 using AK::IsBaseOf;

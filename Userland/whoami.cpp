@@ -24,23 +24,42 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <AK/LogStream.h>
+#include <AK/StdLibExtras.h>
 #include <stdio.h>
 #include <unistd.h>
 
+int g_res = 0;
+
+class Foo : public HeapAllocated<Foo> {
+    friend class HeapAllocated<Foo>; // Need this to allow HeapAllocated::operator delete(...) to destruct this instance.
+
+public:
+    Foo() = default;
+
+private:
+    ~Foo()
+    {
+        if (pledge("stdio rpath", nullptr) < 0) {
+            perror("pledge");
+            g_res = 1;
+            return;
+        }
+
+        if (unveil("/etc/passwd", "r") < 0) {
+            perror("unveil");
+            g_res = 1;
+            return;
+        }
+
+        unveil(nullptr, nullptr);
+
+        puts(getlogin());
+    }
+};
+
 int main(int, char**)
 {
-    if (pledge("stdio rpath", nullptr) < 0) {
-        perror("pledge");
-        return 1;
-    }
-
-    if (unveil("/etc/passwd", "r") < 0) {
-        perror("unveil");
-        return 1;
-    }
-
-    unveil(nullptr, nullptr);
-
-    puts(getlogin());
-    return 0;
+    delete new Foo;
+    return g_res;
 }
