@@ -51,3 +51,18 @@ match "$(echo)" {
 };
 
 test "$result" = yes || echo invalid result $result for string subst match && exit 1
+
+match (foo bar) {
+    (f? *) as (x y) {
+        result=fail
+    }
+    (f* b*) as (x y) {
+        if [ "$x" = oo -a "$y" = ar ] {
+            result=yes
+        } else {
+            result=fail
+        }
+    }
+}
+
+test "$result" = yes || echo invalid result $result for subst match with name && exit 1

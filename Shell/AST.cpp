@@ -1438,7 +1438,23 @@ void MatchExpr::dump(int level) const
     print_indented(String::format("(named: %s)", m_expr_name.characters()), level + 1);
     print_indented("(entries)", level + 1);
     for (auto& entry : m_entries) {
-        print_indented("(match)", level + 2);
+        StringBuilder builder;
+        builder.append("(match");
+        if (entry.match_names.has_value()) {
+            builder.append(" to names (");
+            bool first = true;
+            for (auto& name : entry.match_names.value()) {
+                if (!first)
+                    builder.append(' ');
+                first = false;
+                builder.append(name);
+            }
+            builder.append("))");
+
+        } else {
+            builder.append(')');
+        }
+        print_indented(builder.string_view(), level + 2);
         for (auto& node : entry.options)
             node.dump(level + 3);
         print_indented("(execute)", level + 2);
@@ -1454,13 +1470,16 @@ RefPtr<Value> MatchExpr::run(RefPtr<Shell> shell)
     auto value = m_matched_expr->run(shell)->resolve_without_cast(shell);
     auto list = value->resolve_as_list(shell);
 
-    auto list_matches = [&](auto&& pattern) {
+    auto list_matches = [&](auto&& pattern, auto& spans) {
         if (pattern.size() != list.size())
             return false;
 
         for (size_t i = 0; i < pattern.size(); ++i) {
-            if (!list[i].matches(pattern[i]))
+            Vector<AK::MaskSpan> mask_spans;
+            if (!list[i].matches(pattern[i], mask_spans))
                 return false;
+            for (auto& span : mask_spans)
+                spans.append(list[i].substring(span.start, span.length));
         }
 
         return true;
@@ -1490,11 +1509,21 @@ RefPtr<Value> MatchExpr::run(RefPtr<Shell> shell)
 
     for (auto& entry : m_entries) {
         for (auto& option : entry.options) {
-            if (list_matches(resolve_pattern(option))) {
-                if (entry.body)
+            Vector<String> spans;
+            if (list_matches(resolve_pattern(option), spans)) {
+                if (entry.body) {
+                    if (entry.match_names.has_value()) {
+                        size_t i = 0;
+                        for (auto& name : entry.match_names.value()) {
+                            if (spans.size() > i)
+                                shell->set_local_variable(name, create<AST::StringValue>(spans[i]));
+                            ++i;
+                        }
+                    }
                     return entry.body->run(shell);
-                else
+                } else {
                     return create<AST::ListValue>({});
+                }
             }
         }
     }
@@ -1524,6 +1553,9 @@ void MatchExpr::highlight_in_editor(Line::Editor& editor, Shell& shell, Highligh
 
         for (auto& position : entry.pipe_positions)
             editor.stylize({ position.start_offset, position.end_offset }, { Line::Style::Foreground(Line::Style::XtermColor::Yellow) });
+
+        if (entry.match_as_position.has_value())
+            editor.stylize({ entry.match_as_position.value().start_offset, entry.match_as_position.value().end_offset }, { Line::Style::Foreground(Line::Style::XtermColor::Yellow) });
     }
 }
 
