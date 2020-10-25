@@ -1,0 +1,164 @@
+#!/bin/env serenity-shell
+
+setopt --verbose
+
+remote_name=$1
+url=$2
+host=''
+project_name=''
+project_owner=''
+
+match $url {
+    *.git { }
+    * {
+        url=$url.git
+    }
+}
+
+match $url {
+    https://*/*/*.git | http://*/*/*.git as (domain username project) {
+        host=$domain
+        project_name=$project
+        project_owner=$username
+    }
+    *  {
+        dbg Dunno how to talk to $url!
+        exit 1
+    }
+}
+
+dbg() {
+    echo DEBUG "\e[34m" $* "\e[0m" >&2
+}
+
+hilight(mode) {
+    match $mode {
+        debug { echo "\e[34m" >&2 }
+        normal { echo "\e[0m" >&2 }
+    }
+}
+
+parse_refspack() {
+    state=pkt-line
+    for $(cat) {
+        match $state {
+            pkt-line {
+                # FIXME: Verify?
+                state=flush-line
+            }
+            flush-line {
+                state=reflist
+            }
+            reflist {
+                match $it {
+                    0000 {
+                        state=end
+                    }
+                    ????* as (_ _ _ _ ref) {
+                        echo $ref
+                    }
+                }
+            }
+        }
+    }
+}
+
+ensure_user_pass(username password) {
+    if [ -z $username -a -z $password ] {
+        askpass=''
+        match ("$GIT_ASKPASS" "$(git config core.askPass)" "$SSH_ASKPASS") as all {
+            ("" "" *) as (ap _0 _1) {
+                askpass=$ap
+            }
+            ("" * *) as (_ ap _) {
+                askpass=$ap
+            }
+            (* * *) as (_ _ ap) {
+                askpass=$ap
+            }
+        }
+        if [ -n $askpass ] {
+            dbg I have askpass: $askpass!
+            username=$($askpass 'username?')
+            password=$($askpass 'password?')
+        } else {
+            dbg "I can't ask anything!"
+        }
+    }
+    echo $username:$password
+}
+
+pad_with_length(what) {
+    echo -n $(printf %04x $(echo -n 0000$what | wc -c))$what
+}
+upload_pack(sha1 name) {
+    pad_with_length "want $sha1\n"
+    echo -n 0000
+    dbg $request
+}
+
+http_body() {
+    state=free
+    for $(cat) {
+        match $state {
+            free {
+                if test $it = "\r" {
+                    state=dump
+                }
+            }
+            dump {
+                echo $it
+            }
+        }
+    }
+}
+
+username=''
+password=''
+for $(cat) {
+    dbg command is "'$it'"
+    match $it {
+        capabilities {
+            echo connect
+            echo
+        }
+        connect\ * as (service) {
+            dbg connect to $service
+            match $(ensure_user_pass $username $password) {
+                *:* as (u p) {
+                    username=$u
+                    password=$p
+                }
+            }
+            token=$(echo -n "$username:$password" | base64)
+            dbg auth $username:$password basic $token
+            # response=$(curl \
+            #    -H "Authorization: Basic $token" \
+            #    "$url/info/refs?service=$service")
+
+            # hilight debug
+            # echo -n $response | xxd >&2
+            # hilight normal
+
+            echo
+            curl -d '@-' -v \
+               -H "Authorization: Basic $token" \
+               "$url/$service"
+
+            echo
+        }
+        fetch\ *\ * as (sha1 name) {
+            upload_pack $sha1 $name \
+                | curl -v -d '@-' $url/git-upload-pack
+        }
+        list {
+            curl "$url/info/refs?service=git-upload-pack" | parse_refspack
+            echo
+        }
+        * {
+            dbg "Unknown command $it"
+            exit 0
+        }
+    }
+}
+
