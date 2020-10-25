@@ -110,11 +110,12 @@ public:
     String format(const StringView&, ssize_t& cursor) const;
 
     struct LocalFrame {
+        String name;
         HashMap<String, RefPtr<AST::Value>> local_variables;
     };
 
     struct Frame {
-        Frame(Vector<LocalFrame>& frames, const LocalFrame& frame)
+        Frame(Vector<OwnPtr<LocalFrame>>& frames, const LocalFrame& frame)
             : frames(frames)
             , frame(frame)
         {
@@ -124,12 +125,12 @@ public:
         void leak_frame() { should_destroy_frame = false; }
 
     private:
-        Vector<LocalFrame>& frames;
+        Vector<OwnPtr<LocalFrame>>& frames;
         const LocalFrame& frame;
         bool should_destroy_frame { true };
     };
 
-    [[nodiscard]] Frame push_frame();
+    [[nodiscard]] Frame push_frame(String name);
     void pop_frame();
 
     static String escape_token(const String& token);
@@ -245,7 +246,7 @@ private:
     };
 
     HashMap<String, ShellFunction> m_functions;
-    Vector<LocalFrame> m_local_frames;
+    Vector<OwnPtr<LocalFrame>> m_local_frames;
     NonnullRefPtrVector<AST::Redirection> m_global_redirections;
 
     HashMap<String, String> m_aliases;

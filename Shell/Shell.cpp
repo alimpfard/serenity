@@ -360,8 +360,8 @@ String Shell::resolve_path(String path) const
 Shell::LocalFrame* Shell::find_frame_containing_local_variable(const String& name)
 {
     for (auto& frame : m_local_frames) {
-        if (frame.local_variables.contains(name))
-            return &frame;
+        if (frame->local_variables.contains(name))
+            return frame;
     }
     return nullptr;
 }
@@ -417,7 +417,7 @@ void Shell::set_local_variable(const String& name, RefPtr<AST::Value> value)
     if (auto* frame = find_frame_containing_local_variable(name))
         frame->local_variables.set(name, move(value));
     else
-        m_local_frames.last().local_variables.set(name, move(value));
+        m_local_frames.last()->local_variables.set(name, move(value));
 }
 
 void Shell::unset_local_variable(const String& name)
@@ -463,7 +463,7 @@ bool Shell::invoke_function(const AST::Command& command, int& retval)
         return true;
     }
 
-    auto frame = push_frame();
+    auto frame = push_frame(String::formatted("function {}", function.name));
     size_t index = 0;
     for (auto& arg : function.arguments) {
         ++index;
@@ -489,10 +489,13 @@ String Shell::format(const StringView& source, ssize_t& cursor) const
     return result;
 }
 
-Shell::Frame Shell::push_frame()
+Shell::Frame Shell::push_frame(String name)
 {
-    m_local_frames.empend();
-    return { m_local_frames, m_local_frames.last() };
+    m_local_frames.append(make<LocalFrame>(name, decltype(LocalFrame::local_variables) {}));
+#ifdef SH_DEBUG
+    dbg() << "New frame '" << name << "' at " << m_local_frames.last();
+#endif
+    return { m_local_frames, *m_local_frames.last() };
 }
 
 void Shell::pop_frame()
@@ -505,7 +508,12 @@ Shell::Frame::~Frame()
 {
     if (!should_destroy_frame)
         return;
-    ASSERT(&frames.last() == &frame);
+    if (frames.last() != &frame) {
+        dbg() << "Frame destruction order violation near " << &frame << " (container = " << this << ") '" << frame.name << "'; current frames:";
+        for (auto& frame : frames)
+            dbg() << "- " << &frame << ": " << frame->name;
+        ASSERT_NOT_REACHED();
+    }
     frames.take_last();
 }
 
@@ -1239,7 +1247,7 @@ Vector<Line::CompletionSuggestion> Shell::complete_variable(const String& name, 
 
     // Look at local variables.
     for (auto& frame : m_local_frames) {
-        for (auto& variable : frame.local_variables) {
+        for (auto& variable : frame->local_variables) {
             if (variable.key.starts_with(pattern) && !suggestions.contains_slow(variable.key))
                 suggestions.append(variable.key);
         }
@@ -1484,7 +1492,7 @@ void Shell::notify_child_event()
 Shell::Shell()
     : m_default_constructed(true)
 {
-    push_frame().leak_frame();
+    push_frame("main").leak_frame();
 
     int rc = gethostname(hostname, Shell::HostNameSize);
     if (rc < 0)
@@ -1524,7 +1532,7 @@ Shell::Shell(Line::Editor& editor)
     tcsetpgrp(0, getpgrp());
     m_pid = getpid();
 
-    push_frame().leak_frame();
+    push_frame("main").leak_frame();
 
     int rc = gethostname(hostname, Shell::HostNameSize);
     if (rc < 0)
