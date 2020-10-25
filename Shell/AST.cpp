@@ -1484,7 +1484,7 @@ RefPtr<Value> MatchExpr::run(RefPtr<Shell> shell)
         return pattern;
     };
 
-    auto frame = shell->push_frame(String::formatted("match '{}'...", value->resolve_as_list(nullptr).first()));
+    auto frame = shell->push_frame(String::formatted("match ({})", this));
     if (!m_expr_name.is_empty())
         shell->set_local_variable(m_expr_name, value);
 
