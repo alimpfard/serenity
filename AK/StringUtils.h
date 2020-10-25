@@ -42,9 +42,16 @@ enum class TrimMode {
     Both
 };
 
+struct MaskSpan {
+    size_t start;
+    size_t length;
+
+    bool operator==(const MaskSpan& other) const = default;
+};
+
 namespace StringUtils {
 
-bool matches(const StringView& str, const StringView& mask, CaseSensitivity = CaseSensitivity::CaseInsensitive);
+bool matches(const StringView& str, const StringView& mask, CaseSensitivity = CaseSensitivity::CaseInsensitive, Vector<MaskSpan>* match_spans = nullptr);
 Optional<int> convert_to_int(const StringView&);
 Optional<unsigned> convert_to_uint(const StringView&);
 Optional<unsigned> convert_to_uint_from_hex(const StringView&);
