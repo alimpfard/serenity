@@ -48,6 +48,7 @@ target_link_libraries(test-web LibWeb)
 target_link_libraries(tt LibPthread)
 target_link_libraries(grep LibRegex)
 target_link_libraries(gunzip LibCompress)
+target_link_libraries(wm_event LibIPC LibGfx LibGUI LibKeyboard)
 
 add_subdirectory(Tests)
 add_subdirectory(DynamicLoader)

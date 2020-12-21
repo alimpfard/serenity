@@ -29,6 +29,7 @@
 #include <AK/Badge.h>
 #include <AK/Function.h>
 #include <AK/HashMap.h>
+#include <AK/HashTable.h>
 #include <AK/OwnPtr.h>
 #include <AK/WeakPtr.h>
 #include <LibCore/Object.h>
@@ -143,6 +144,10 @@ private:
     virtual void handle(const Messages::WindowServer::EnableDisplayLink&) override;
     virtual void handle(const Messages::WindowServer::DisableDisplayLink&) override;
     virtual void handle(const Messages::WindowServer::SetWindowProgress&) override;
+    virtual OwnPtr<Messages::WindowServer::StartScriptedControlSessionResponse> handle(const Messages::WindowServer::StartScriptedControlSession&) override;
+    virtual OwnPtr<Messages::WindowServer::EndScriptedControlSessionResponse> handle(const Messages::WindowServer::EndScriptedControlSession&) override;
+    virtual void handle(const Messages::WindowServer::EnqueueScriptedKeyboardEvent&) override;
+    virtual void handle(const Messages::WindowServer::EnqueueScriptedMouseEvent&) override;
     virtual void handle(const Messages::WindowServer::Pong&) override;
 
     Window* window_from_id(i32 window_id);
@@ -153,6 +158,8 @@ private:
     WeakPtr<MenuBar> m_app_menubar;
 
     RefPtr<Core::Timer> m_ping_timer;
+
+    HashTable<u64> m_scripting_sessions;
 
     int m_next_menubar_id { 10000 };
     int m_next_menu_id { 20000 };

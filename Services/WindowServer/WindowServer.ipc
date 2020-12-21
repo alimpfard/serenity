@@ -105,5 +105,11 @@ endpoint WindowServer = 2
     EnableDisplayLink() =|
     DisableDisplayLink() =|
 
+    StartScriptedControlSession() => (int session_id)
+    EndScriptedControlSession(int session_id) => ()
+
+    EnqueueScriptedMouseEvent(int session_id, int x, int y, int z, u8 buttons, bool is_relative) =|
+    EnqueueScriptedKeyboardEvent(int session_id, u8 key, u32 scancode, u32 code_point, u8 flags, bool caps_lock_on, bool e0_prefix) =|
+
     Pong() =|
 }

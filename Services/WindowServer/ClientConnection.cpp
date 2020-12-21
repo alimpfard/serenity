@@ -26,6 +26,7 @@
 
 #include <AK/Badge.h>
 #include <AK/SharedBuffer.h>
+#include <Kernel/API/MousePacket.h>
 #include <LibGfx/Bitmap.h>
 #include <LibGfx/SystemTheme.h>
 #include <WindowServer/AppletManager.h>
@@ -870,6 +871,52 @@ void ClientConnection::handle(const Messages::WindowServer::Pong&)
 {
     m_ping_timer = nullptr;
     set_unresponsive(false);
+}
+
+OwnPtr<Messages::WindowServer::StartScriptedControlSessionResponse> ClientConnection::handle(const Messages::WindowServer::StartScriptedControlSession&)
+{
+    static u64 s_scripting_session_id = 0;
+    auto id = s_scripting_session_id++;
+    while (m_scripting_sessions.contains(id))
+        id = s_scripting_session_id++;
+    m_scripting_sessions.set(id);
+
+    return make<Messages::WindowServer::StartScriptedControlSessionResponse>(id);
+}
+
+OwnPtr<Messages::WindowServer::EndScriptedControlSessionResponse> ClientConnection::handle(const Messages::WindowServer::EndScriptedControlSession& message)
+{
+    if (!m_scripting_sessions.contains(message.session_id())) {
+        did_misbehave("EndScriptedControlSession: Bad session ID");
+        return nullptr;
+    }
+    m_scripting_sessions.remove(message.session_id());
+
+    return make<Messages::WindowServer::EndScriptedControlSessionResponse>();
+}
+
+void ClientConnection::handle(const Messages::WindowServer::EnqueueScriptedKeyboardEvent& message)
+{
+    if (!m_scripting_sessions.contains(message.session_id())) {
+        did_misbehave("EnqueueScriptedKeyboardEvent: Bad session ID");
+        return;
+    }
+    deferred_invoke([event = ::KeyEvent { (KeyCode)message.key(), message.scancode(), message.code_point(), message.flags(), message.caps_lock_on(), message.e0_prefix() }](auto&) {
+        auto& screen = Screen::the();
+        screen.on_receive_keyboard_data(event);
+    });
+}
+
+void ClientConnection::handle(const Messages::WindowServer::EnqueueScriptedMouseEvent& message)
+{
+    if (!m_scripting_sessions.contains(message.session_id())) {
+        did_misbehave("EnqueueScriptedMouseEvent: Bad session ID");
+        return;
+    }
+    deferred_invoke([packet = ::MousePacket { message.x(), message.y(), message.z(), message.buttons(), message.is_relative() }](auto&) {
+        auto& screen = Screen::the();
+        screen.on_receive_mouse_data(packet);
+    });
 }
 
 void ClientConnection::set_unresponsive(bool unresponsive)
