@@ -100,7 +100,7 @@ public:
     bool has_builtin(const StringView&) const;
     void block_on_job(RefPtr<Job>);
     void block_on_pipeline(RefPtr<AST::Pipeline>);
-    String prompt() const;
+    String prompt();
 
     static String expand_tilde(const String&);
     static Vector<String> expand_globs(const StringView& path, StringView base);

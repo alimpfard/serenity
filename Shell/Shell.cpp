@@ -96,7 +96,7 @@ void Shell::print_path(const String& path)
     printf("\033]8;;file://%s%s\033\\%s\033]8;;\033\\", hostname, path.characters(), path.characters());
 }
 
-String Shell::prompt() const
+String Shell::prompt()
 {
     auto build_prompt = [&]() -> String {
         auto* ps1 = getenv("PROMPT");
@@ -110,8 +110,39 @@ String Shell::prompt() const
             return builder.to_string();
         }
 
+        String prompt = ps1;
         StringBuilder builder;
-        for (char* ptr = ps1; *ptr; ++ptr) {
+
+        if (getenv("PROMPT_SUBST") != nullptr) {
+            TemporaryChange<Optional<SourcePosition>> change { m_source_position, SourcePosition { .source_file = {}, .literal_source_text = prompt, .position = {} } };
+
+            auto node = Parser { prompt }.parse_as_expression();
+            if (!node || node->is_syntax_error()) {
+                raise_error(ShellError::EvaluatedSyntaxError, "Failed to parse $PROMPT (as $PROMPT_SUBST was set)", node->syntax_error_node().position());
+                possibly_print_error();
+                take_error();
+                return "$ ";
+            }
+
+            auto& node_ptr = *node;
+            node_ptr.dump(1);
+
+            auto value = node_ptr.run(*this);
+            if (!value) {
+                raise_error(ShellError::EvaluatedSyntaxError, "Failed to expand $PROMPT", node->position());
+                possibly_print_error();
+                take_error();
+                return "$ ";
+            }
+
+            builder.join(" ", value->resolve_as_list(*this));
+            prompt = builder.to_string();
+            builder.clear();
+
+            restore_ios();
+        }
+
+        for (const char* ptr = prompt.characters(); *ptr; ++ptr) {
             if (*ptr == '\\') {
                 ++ptr;
                 if (!*ptr)

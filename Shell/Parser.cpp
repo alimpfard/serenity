@@ -25,6 +25,7 @@
  */
 
 #include "Parser.h"
+#include "Shell.h"
 #include <AK/TemporaryChange.h>
 #include <ctype.h>
 #include <stdio.h>
@@ -114,11 +115,6 @@ static constexpr bool is_whitespace(char c)
     return c == ' ' || c == '\t';
 }
 
-static constexpr bool is_word_character(char c)
-{
-    return (c <= '9' && c >= '0') || (c <= 'Z' && c >= 'A') || (c <= 'z' && c >= 'a') || c == '_';
-}
-
 static constexpr bool is_digit(char c)
 {
     return c <= '9' && c >= '0';
@@ -155,6 +151,26 @@ RefPtr<AST::Node> Parser::parse()
     }
 
     return toplevel;
+}
+
+RefPtr<AST::Node> Parser::parse_as_expression()
+{
+    StringBuilder builder;
+    builder.append('"');
+    for (auto c : m_input) {
+        switch (c) {
+        case '"':
+        case '\\':
+            builder.append("\\");
+            break;
+        default:
+            break;
+        }
+        builder.append(c);
+    }
+    builder.append('"');
+
+    return Parser(builder.string_view()).parse_expression();
 }
 
 RefPtr<AST::Node> Parser::parse_toplevel()

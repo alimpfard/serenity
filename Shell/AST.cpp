@@ -1898,6 +1898,8 @@ PathRedirectionNode::PathRedirectionNode(Position position, int fd, NonnullRefPt
     , m_fd(fd)
     , m_path(move(path))
 {
+    if (m_path->is_syntax_error())
+        set_is_syntax_error(m_path->syntax_error_node());
 }
 
 void PathRedirectionNode::highlight_in_editor(Line::Editor& editor, Shell& shell, HighlightMetadata metadata)

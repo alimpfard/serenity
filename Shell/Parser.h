@@ -43,6 +43,7 @@ public:
     }
 
     RefPtr<AST::Node> parse();
+    RefPtr<AST::Node> parse_as_expression();
 
     struct SavedOffset {
         size_t offset;
