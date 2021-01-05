@@ -1655,7 +1655,7 @@ size_t StringMetrics::lines_with_addition(const StringMetrics& offset, size_t co
 size_t StringMetrics::offset_with_addition(const StringMetrics& offset, size_t column_width) const
 {
     if (offset.line_lengths.size() > 1)
-        return offset.line_lengths.first() % column_width;
+        return offset.line_lengths.last() % column_width;
 
     auto last = line_lengths.last();
     last += offset.line_lengths.first();
