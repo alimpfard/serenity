@@ -90,6 +90,7 @@ private:
     virtual void visit(const AST::SyntaxError*) override;
     virtual void visit(const AST::Tilde*) override;
     virtual void visit(const AST::VariableDeclarations*) override;
+    virtual void visit(const AST::VariableSlice*) override;
     virtual void visit(const AST::WriteAppendRedirection*) override;
     virtual void visit(const AST::WriteRedirection*) override;
 

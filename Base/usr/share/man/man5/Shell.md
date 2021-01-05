@@ -40,7 +40,10 @@ Any sequence of _Double Quoted String Part_ tokens:
 * Escaped sequences
 
 ##### Variable Reference
-Any sequence of _Identifier_ characters, or a _Special Variable_ following a `$`
+Any sequence of _Identifier_ characters optionally followed by a _slice_, or a _Special Variable_ following a `$`
+
+##### Slices
+Variables can be sliced into using brackets immediately following a simple variable reference, any expression valid inside a _Brace Expansion_ expression is valid inside slices; that includes (but is not limited to) ranges and sequences of indices.
 
 ##### Evaluate expression
 Any expression following a `$` that is not a variable reference:
@@ -108,6 +111,8 @@ The shell performs various expansions, in different stages.
 
 * Variable Expansion: Variables shall be expanded preserving their types.
 
+* Slices: Slices shall be applied to their respective expressions.
+
 * Brace Expansions: Brace expansions shall be expanded to a list.
 
 * Juxtaposition Expansion: Juxtapositions shall be expanded as list products.
@@ -120,6 +125,13 @@ _Normal brace expansions_ are sequences of optional expressions inside braces (`
 _Range brace expansions_ are of the form `{start_expression..end_expression}`, where `start_expression` and `end_expression` denote the bounds of an inclusive _range_, and can be one of two types:
 - Single unicode code points: The range expands to all code points between the start and end, e.g. `{a..c}` shall expand to the list `(a b c)`.
 - Numbers: The range expands to all numbers between the start and end, e.g. `{8..11}` shall expand to the list `(8 9 10 11)`.
+
+### Slices
+Slices follow the rules for _Brace Expansions_, however, only numeric indices are allowed inside slices (violation is a runtime error).
+Indices start at zero (e.g. `0` refers to the first element in the list, `1` to the second, etc.), and they _may_ be negative - in which case the given index will be applied from the end the list (e.g. `-1` refers to the last element in the list, `-2` to the second-last, and so on).
+It should be noted that accessing outside the bounds of a list using slices is a runtime error.
+
+Currently, slices may only be applied to lists (and not strings).
 
 ### Juxtapositions
 Any two expressions joined without any operator are considered to be in a Juxtaposition, with the resulting value being the list product of two expressions.

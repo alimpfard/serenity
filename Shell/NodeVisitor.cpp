@@ -232,6 +232,11 @@ void NodeVisitor::visit(const AST::VariableDeclarations* node)
     }
 }
 
+void NodeVisitor::visit(const AST::VariableSlice* node)
+{
+    node->slice()->visit(*this);
+}
+
 void NodeVisitor::visit(const AST::WriteAppendRedirection* node)
 {
     visit(static_cast<const AST::PathRedirectionNode*>(node));

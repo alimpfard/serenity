@@ -40,6 +40,8 @@ enum class AugmentedTokenKind : u32 {
     __TokenTypeCount = (u32)AST::Node::Kind::__Count,
     OpenParen,
     CloseParen,
+    OpenBracket,
+    CloseBracket,
 };
 
 class HighlightVisitor : public AST::NodeVisitor {
@@ -467,6 +469,27 @@ private:
             start_span.data = (void*)static_cast<size_t>(AugmentedTokenKind::OpenParen);
         }
     }
+    virtual void visit(const AST::VariableSlice* node) override
+    {
+        auto& span = span_for_node(node);
+        span.attributes.color = m_palette.syntax_identifier();
+        set_offset_range_end(span.range, node->slice()->position().start_line, 2);
+
+        if (!node->slice()->is_syntax_error()) {
+            auto& left_bracket_span = span_for_node(node->slice());
+            auto& right_bracket_span = span_for_node(node->slice());
+
+            set_offset_range_start(left_bracket_span.range, node->slice()->position().start_line);
+            set_offset_range_end(left_bracket_span.range, node->slice()->position().start_line);
+            left_bracket_span.data = (void*)static_cast<size_t>(AugmentedTokenKind::OpenBracket);
+
+            set_offset_range_start(right_bracket_span.range, node->slice()->position().end_line);
+            right_bracket_span.range.end().set_column(right_bracket_span.range.end().column() + 1);
+            right_bracket_span.data = (void*)static_cast<size_t>(AugmentedTokenKind::CloseBracket);
+        }
+
+        NodeVisitor::visit(node);
+    }
     virtual void visit(const AST::WriteAppendRedirection* node) override
     {
         NodeVisitor::visit(node);
@@ -532,6 +555,10 @@ Vector<SyntaxHighlighter::MatchingTokenPair> ShellSyntaxHighlighter::matching_to
         pairs.append({
             (void*)static_cast<size_t>(AugmentedTokenKind::OpenParen),
             (void*)static_cast<size_t>(AugmentedTokenKind::CloseParen),
+        });
+        pairs.append({
+            (void*)static_cast<size_t>(AugmentedTokenKind::OpenBracket),
+            (void*)static_cast<size_t>(AugmentedTokenKind::CloseBracket),
         });
     }
     return pairs;

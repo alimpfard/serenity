@@ -11,6 +11,10 @@ fail() {
     exit 1
 }
 
+expect(actual op expected error) {
+    test "$actual" "$op" "$expected" || fail $error
+}
+
 # Can we chain &&'s?
 false && exit 2 && fail "can't chain &&'s"
 
@@ -20,6 +24,9 @@ false && exit 2 || true && false && fail Invalid precedence between '&&' and '||
 
 # Sanity check: can we pass arguments to 'test'?
 test yes = yes || exit 2
+
+# Sanity check: does 'expect' work?
+expect yes = yes "sanity check"
 
 # Sanity check: can we use $(command)?
 test "$(echo yes)" = yes || exit 2
@@ -90,3 +97,15 @@ test "$(echo -n "a\n\nb")" = "a  b" || fail inline_exec_keep_empty_segments has 
 
 setopt --no_inline_exec_keep_empty_segments
 test "$(echo -n "a\n\nb")" = "a b" || fail cannot unset inline_exec_keep_empty_segments
+
+# Slice
+foo=(1 2 3)
+expect $foo[0] = 1 "access first element: invalid"
+expect $foo[1] = 2 "access second element: invalid"
+expect $foo[2] = 3 "access third element: invalid"
+expect $foo[-3] = 1 "access first element from end: invalid"
+expect $foo[-2] = 2 "access second element from end: invalid"
+expect $foo[-1] = 3 "access third element from end: invalid"
+expect "$foo[0..2]" = "1 2 3" "access range slice: invalid"
+expect "$foo[-1..-3]" = "3 2 1" "access negative range slice: invalid"
+expect "$foo[0,-3]" = "1 1" "access selective indices from slice: invalid"

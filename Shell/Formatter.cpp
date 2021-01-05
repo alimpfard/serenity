@@ -194,7 +194,9 @@ void Formatter::visit(const AST::BraceExpansion* node)
 {
     will_visit(node);
     test_and_update_output_cursor(node);
-    current_builder().append('{');
+    auto is_in_slice = m_parent_node->kind() == AST::Node::Kind::VariableSlice;
+    if (!is_in_slice)
+        current_builder().append('{');
 
     TemporaryChange<const AST::Node*> parent { m_parent_node, node };
     bool first = true;
@@ -205,7 +207,8 @@ void Formatter::visit(const AST::BraceExpansion* node)
         entry.visit(*this);
     }
 
-    current_builder().append('}');
+    if (!is_in_slice)
+        current_builder().append('}');
     visited(node);
 }
 
@@ -530,14 +533,18 @@ void Formatter::visit(const AST::Range* node)
 {
     will_visit(node);
     test_and_update_output_cursor(node);
-    current_builder().append('{');
+    auto is_in_slice = m_parent_node->kind() == AST::Node::Kind::VariableSlice;
+
+    if (!is_in_slice)
+        current_builder().append('{');
 
     TemporaryChange<const AST::Node*> parent { m_parent_node, node };
     node->start()->visit(*this);
     current_builder().append("..");
     node->end()->visit(*this);
 
-    current_builder().append('}');
+    if (!is_in_slice)
+        current_builder().append('}');
     visited(node);
 }
 
@@ -721,6 +728,21 @@ void Formatter::visit(const AST::VariableDeclarations* node)
         if (entry.value->is_command())
             current_builder().append(')');
     }
+    visited(node);
+}
+
+void Formatter::visit(const AST::VariableSlice* node)
+{
+    will_visit(node);
+    test_and_update_output_cursor(node);
+    TemporaryChange<const AST::Node*> parent { m_parent_node, node };
+
+    current_builder().append('$');
+    current_builder().append(node->name());
+    current_builder().append('[');
+    node->slice()->visit(*this);
+    current_builder().append(']');
+
     visited(node);
 }
 

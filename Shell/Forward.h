@@ -73,6 +73,7 @@ class StringPartCompose;
 class SyntaxError;
 class Tilde;
 class VariableDeclarations;
+class VariableSlice;
 class WriteAppendRedirection;
 class WriteRedirection;
 

@@ -359,6 +359,24 @@ private:
     Position m_generation_position;
 };
 
+class SlicedValue final : public Value {
+public:
+    virtual Vector<String> resolve_as_list(RefPtr<Shell>) override;
+    virtual NonnullRefPtr<Value> resolve_without_cast(RefPtr<Shell>) override;
+    virtual ~SlicedValue();
+    SlicedValue(NonnullRefPtr<Value> value, NonnullRefPtr<Value> slice)
+        : m_value(move(value))
+        , m_slice(move(slice))
+    {
+    }
+
+private:
+    Vector<String> slice(Vector<String>&& list, Shell&);
+
+    NonnullRefPtr<Value> m_value;
+    NonnullRefPtr<Value> m_slice;
+};
+
 class SimpleVariableValue final : public Value {
 public:
     virtual Vector<String> resolve_as_list(RefPtr<Shell>) override;
@@ -480,6 +498,7 @@ public:
         ReadWriteRedirection,
         Sequence,
         Subshell,
+        VariableSlice,
         SimpleVariable,
         SpecialVariable,
         Juxtaposition,
@@ -1115,6 +1134,28 @@ private:
     virtual bool would_execute() const override { return false; }
 
     RefPtr<AST::Node> m_block;
+};
+
+class VariableSlice final : public Node {
+public:
+    VariableSlice(Position, String, NonnullRefPtr<Node> slice);
+    virtual ~VariableSlice();
+
+    virtual void visit(NodeVisitor& visitor) override { visitor.visit(this); }
+    const String& name() const { return m_name; }
+    const NonnullRefPtr<Node>& slice() const { return m_slice; }
+
+private:
+    NODE(VariableSlice);
+    virtual void dump(int level) const override;
+    virtual RefPtr<Value> run(RefPtr<Shell>) override;
+    virtual void highlight_in_editor(Line::Editor&, Shell&, HighlightMetadata = {}) override;
+    virtual Vector<Line::CompletionSuggestion> complete_for_editor(Shell&, size_t, const HitTestResult&) override;
+    virtual HitTestResult hit_test_position(size_t) override;
+    virtual bool is_simple_variable() const override { return true; }
+
+    String m_name;
+    NonnullRefPtr<Node> m_slice;
 };
 
 class SimpleVariable final : public Node {

@@ -2231,6 +2231,80 @@ Subshell::~Subshell()
 {
 }
 
+void VariableSlice::dump(int level) const
+{
+    Node::dump(level);
+    print_indented("(Variable)", level + 1);
+    print_indented(m_name, level + 2);
+    print_indented("(Slice)", level + 1);
+    m_slice->dump(level + 2);
+}
+
+RefPtr<Value> VariableSlice::run(RefPtr<Shell> shell)
+{
+    auto slice = m_slice->run(shell);
+    if (!slice)
+        return {};
+
+    return create<SlicedValue>(create<SimpleVariableValue>(m_name), slice.release_nonnull());
+}
+
+void VariableSlice::highlight_in_editor(Line::Editor& editor, Shell& shell, HighlightMetadata metadata)
+{
+    Line::Style style { Line::Style::Foreground(214, 112, 214) };
+    if (metadata.is_first_in_list)
+        style.unify_with({ Line::Style::Bold });
+    editor.stylize({ m_position.start_offset, m_position.end_offset }, move(style));
+    editor.stylize({ m_slice->position().start_offset - 1, m_slice->position().start_offset }, { Line::Style::Foreground(Line::Style::XtermColor::Yellow) });
+    editor.stylize({ m_slice->position().end_offset, m_slice->position().end_offset + 1 }, { Line::Style::Foreground(Line::Style::XtermColor::Yellow) });
+    metadata.is_first_in_list = false;
+    m_slice->highlight_in_editor(editor, shell, metadata);
+}
+
+HitTestResult VariableSlice::hit_test_position(size_t offset)
+{
+    if (!position().contains(offset))
+        return {};
+
+    if (auto slice_hit = m_slice->hit_test_position(offset); slice_hit.matching_node) {
+        if (!slice_hit.closest_node_with_semantic_meaning)
+            slice_hit.closest_node_with_semantic_meaning = this;
+        return slice_hit;
+    }
+
+    return { this, this, nullptr };
+}
+
+Vector<Line::CompletionSuggestion> VariableSlice::complete_for_editor(Shell& shell, size_t offset, const HitTestResult& hit_test_result)
+{
+    auto matching_node = hit_test_result.matching_node;
+    if (!matching_node)
+        return {};
+
+    if (matching_node != this)
+        return {};
+
+    auto corrected_offset = offset - matching_node->position().start_offset - 1;
+
+    if (corrected_offset > m_name.length() + 1)
+        return {};
+
+    return shell.complete_variable(m_name, corrected_offset);
+}
+
+VariableSlice::VariableSlice(Position position, String name, NonnullRefPtr<Node> slice)
+    : Node(move(position))
+    , m_name(move(name))
+    , m_slice(move(slice))
+{
+    if (m_slice->is_syntax_error())
+        set_is_syntax_error(m_slice->syntax_error_node());
+}
+
+VariableSlice::~VariableSlice()
+{
+}
+
 void SimpleVariable::dump(int level) const
 {
     Node::dump(level);
@@ -2864,6 +2938,57 @@ Vector<String> GlobValue::resolve_as_list(RefPtr<Shell> shell)
     if (results.is_empty())
         shell->raise_error(Shell::ShellError::InvalidGlobError, "Glob did not match anything!", m_generation_position);
     return results;
+}
+
+SlicedValue::~SlicedValue()
+{
+}
+
+Vector<String> SlicedValue::slice(Vector<String>&& list, Shell& shell)
+{
+    auto slices = m_slice->resolve_as_list(shell);
+    // FIXME: Should we allow hash maps too?
+    Vector<size_t> numeric_slices;
+    for (auto& slice : slices) {
+        auto slice_index = slice.to_int();
+        if (!slice_index.has_value()) {
+            shell.raise_error(Shell::ShellError::EvaluatedSyntaxError, String::formatted("Slice '{}' is not a number", slice));
+            return {};
+        }
+        if (slice_index.value() < 0)
+            slice_index = list.size() + slice_index.value();
+
+        if (slice_index.value() < 0 || (size_t)slice_index.value() > list.size()) {
+            shell.raise_error(Shell::ShellError::EvaluatedSyntaxError, String::formatted("Slice '{}' is outside the bounds of the sliced list", slice));
+            return {};
+        }
+
+        numeric_slices.append(slice_index.value());
+    }
+
+    Vector<String> result;
+    for (auto& index : numeric_slices)
+        result.append(list[index]);
+
+    return result;
+};
+
+Vector<String> SlicedValue::resolve_as_list(RefPtr<Shell> shell)
+{
+    if (!shell)
+        return {};
+
+    return slice(m_value->resolve_as_list(shell), *shell);
+}
+
+NonnullRefPtr<Value> SlicedValue::resolve_without_cast(RefPtr<Shell> shell)
+{
+    ASSERT(shell);
+
+    if (auto value = m_value->resolve_without_cast(shell))
+        return create<SlicedValue>(value, m_slice);
+
+    return *this;
 }
 
 SimpleVariableValue::~SimpleVariableValue()

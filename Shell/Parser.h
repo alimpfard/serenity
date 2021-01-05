@@ -140,6 +140,7 @@ private:
     Vector<size_t> m_rule_start_offsets;
     Vector<AST::Position::Line> m_rule_start_lines;
 
+    bool m_is_in_slice { false };
     bool m_is_in_brace_expansion_spec { false };
     bool m_continuation_controls_allowed { false };
 };
@@ -240,6 +241,7 @@ variable :: '$' identifier
           | '$' '?'
           | '$' '*'
           | '$' '#'
+          | '$' identifier '[' brace_expansion_spec ']'
           | ...
 
 comment :: '#' [^\n]*

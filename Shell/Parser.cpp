@@ -1053,6 +1053,9 @@ RefPtr<AST::Node> Parser::parse_expression()
     if (strchr("&|)} ;<>\n", starting_char) != nullptr)
         return nullptr;
 
+    if (m_is_in_slice && starting_char == ']')
+        return nullptr;
+
     if (m_is_in_brace_expansion_spec && starting_char == ',')
         return nullptr;
 
@@ -1289,6 +1292,18 @@ RefPtr<AST::Node> Parser::parse_variable()
         return nullptr;
     }
 
+    if (peek() == '[') {
+        TemporaryChange change { m_is_in_slice, true };
+        consume();
+        auto expr = parse_brace_expansion_spec();
+        auto finished = consume() == ']';
+        if (!expr)
+            expr = create<AST::SyntaxError>("Expected an expression in the slice", !finished);
+        if (!finished && !expr->is_syntax_error())
+            expr->set_is_syntax_error(create<AST::SyntaxError>("Expected a closing bracket ']' to end a slice"));
+        return create<AST::VariableSlice>(move(name), expr.release_nonnull());
+    }
+
     return create<AST::SimpleVariable>(move(name)); // Variable Simple
 }
 
@@ -1348,7 +1363,8 @@ RefPtr<AST::Node> Parser::parse_bareword()
     StringBuilder builder;
     auto is_acceptable_bareword_character = [&](char c) {
         return strchr("\\\"'*$&#|(){} ?;<>\n", c) == nullptr
-            && ((m_is_in_brace_expansion_spec && c != ',') || !m_is_in_brace_expansion_spec);
+            && ((m_is_in_brace_expansion_spec && c != ',') || !m_is_in_brace_expansion_spec)
+            && ((m_is_in_slice && c != ']') || !m_is_in_slice);
     };
     while (!at_end()) {
         char ch = peek();
@@ -1361,6 +1377,11 @@ RefPtr<AST::Node> Parser::parse_bareword()
             }
             builder.append(ch);
             continue;
+        }
+
+        if (m_is_in_slice && next_is("]")) {
+            // Don't eat ']' in a range.
+            break;
         }
 
         if (m_is_in_brace_expansion_spec && next_is("..")) {
