@@ -59,6 +59,13 @@ static IntegerType Power(const IntegerType& b, const IntegerType& e)
     return exp;
 }
 
+struct EGCDResult {
+    UnsignedBigInteger result;
+    UnsignedBigInteger bezout_x;
+    UnsignedBigInteger bezout_y;
+};
+
+EGCDResult EGCD(const UnsignedBigInteger& a, const UnsignedBigInteger& b);
 UnsignedBigInteger GCD(const UnsignedBigInteger& a, const UnsignedBigInteger& b);
 UnsignedBigInteger LCM(const UnsignedBigInteger& a, const UnsignedBigInteger& b);
 

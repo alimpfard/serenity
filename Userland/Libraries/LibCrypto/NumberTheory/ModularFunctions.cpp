@@ -189,6 +189,71 @@ static void GCD_without_allocation(
     }
 }
 
+static void EGCD_without_allocation(
+    const UnsignedBigInteger& a,
+    const UnsignedBigInteger& b,
+    UnsignedBigInteger& temp_a,
+    UnsignedBigInteger& temp_b,
+    UnsignedBigInteger& temp_u,
+    UnsignedBigInteger& temp_v,
+    UnsignedBigInteger& temp_1,
+    UnsignedBigInteger& temp_2,
+    UnsignedBigInteger& temp_3,
+    UnsignedBigInteger& temp_4,
+    UnsignedBigInteger& temp_5,
+    UnsignedBigInteger& temp_6,
+    UnsignedBigInteger& temp_quotient,
+    UnsignedBigInteger& temp_remainder,
+    EGCDResult& output)
+{
+    temp_a.set_to(a);
+    temp_b.set_to(b);
+    output.bezout_x.set_to_0();
+    output.bezout_y.set_to(1);
+    temp_u.set_to(1);
+    temp_v.set_to_0();
+
+    for (;;) {
+        if (temp_a == 0)
+            break;
+
+        UnsignedBigInteger::divide_without_allocation(temp_b, temp_a, temp_1, temp_2, temp_3, temp_4, temp_quotient, temp_remainder);
+        UnsignedBigInteger::multiply_without_allocation(temp_u, temp_quotient, temp_1, temp_2, temp_3, temp_4, temp_5);
+        UnsignedBigInteger::subtract_without_allocation(output.bezout_x, temp_5, temp_6);
+        UnsignedBigInteger::multiply_without_allocation(temp_v, temp_quotient, temp_1, temp_2, temp_3, temp_4, temp_5);
+        UnsignedBigInteger::subtract_without_allocation(output.bezout_y, temp_5, temp_1);
+        temp_b.set_to(temp_a);
+        temp_a.set_to(temp_remainder);
+        output.bezout_x.set_to(temp_u);
+        output.bezout_y.set_to(temp_v);
+        temp_u.set_to(temp_6);
+        temp_v.set_to(temp_1);
+    }
+
+    output.result.set_to(temp_b);
+}
+
+EGCDResult EGCD(const UnsignedBigInteger& a, const UnsignedBigInteger& b)
+{
+    UnsignedBigInteger temp_a;
+    UnsignedBigInteger temp_b;
+    UnsignedBigInteger temp_1;
+    UnsignedBigInteger temp_2;
+    UnsignedBigInteger temp_3;
+    UnsignedBigInteger temp_4;
+    UnsignedBigInteger temp_5;
+    UnsignedBigInteger temp_6;
+    UnsignedBigInteger temp_u;
+    UnsignedBigInteger temp_v;
+    UnsignedBigInteger temp_quotient;
+    UnsignedBigInteger temp_remainder;
+    EGCDResult output;
+
+    EGCD_without_allocation(a, b, temp_a, temp_b, temp_u, temp_v, temp_1, temp_2, temp_3, temp_4, temp_5, temp_6, temp_quotient, temp_remainder, output);
+
+    return output;
+}
+
 UnsignedBigInteger GCD(const UnsignedBigInteger& a, const UnsignedBigInteger& b)
 {
     UnsignedBigInteger temp_a;
