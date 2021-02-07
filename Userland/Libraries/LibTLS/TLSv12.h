@@ -241,7 +241,10 @@ struct Context {
 
     bool is_child { false };
 
-    String SNI; // I hate your existence
+    struct {
+        // Server Name Indicator
+        String SNI; // I hate your existence
+    } extensions;
 
     u8 request_client_certificate { 0 };
 
@@ -277,7 +280,7 @@ public:
             dbgln("invalid state for set_sni");
             return;
         }
-        m_context.SNI = sni;
+        m_context.extensions.SNI = sni;
     }
 
     Optional<Certificate> parse_asn1(ReadonlyBytes, bool client_cert = false) const;
