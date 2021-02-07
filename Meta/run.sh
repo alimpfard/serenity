@@ -8,7 +8,7 @@ die() {
     exit 1
 }
 
-#SERENITY_PACKET_LOGGING_ARG="-object filter-dump,id=hue,netdev=breh,file=e1000.pcap"
+SERENITY_PACKET_LOGGING_ARG="-object filter-dump,id=hue,netdev=breh,file=e1000.pcap"
 
 [ -e /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ] && SERENITY_KVM_ARG="-enable-kvm"
 

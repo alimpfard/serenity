@@ -172,6 +172,7 @@ enum class HandshakeExtension : u16 {
     ServerName = 0x00,
     ApplicationLayerProtocolNegotiation = 0x10,
     SignatureAlgorithms = 0x0d,
+    ExtendedMasterSecret = 0x17,
 };
 
 enum class WritePacketStage {
@@ -194,6 +195,33 @@ enum ClientVerificationStaus {
     VerificationNeeded,
 };
 
+struct Options {
+#define OPTION_WITH_DEFAULTS(typ, name, ...)                    \
+    static typ default_##name() { return typ { __VA_ARGS__ }; } \
+    typ name = default_##name();
+
+    OPTION_WITH_DEFAULTS(Vector<CipherSuite>, usable_cipher_suites,
+        CipherSuite::RSA_WITH_AES_128_CBC_SHA256,
+        CipherSuite::RSA_WITH_AES_256_CBC_SHA256,
+        CipherSuite::RSA_WITH_AES_128_CBC_SHA,
+        CipherSuite::RSA_WITH_AES_256_CBC_SHA,
+        CipherSuite::RSA_WITH_AES_128_GCM_SHA256)
+
+    OPTION_WITH_DEFAULTS(Version, version, Version::V12)
+
+    OPTION_WITH_DEFAULTS(bool, use_sni, true)
+    OPTION_WITH_DEFAULTS(bool, use_compression, false)
+    OPTION_WITH_DEFAULTS(bool, use_extended_master_secret, true)
+    OPTION_WITH_DEFAULTS(bool, validate_certificates, true)
+
+#undef OPTION_WITH_DEFAULTS
+};
+
+struct ExtendedMasterSecretData {
+    // FIXME: Fields related to resumption. we don't support session resumption yet.
+    bool has_committed { false };
+};
+
 struct Context {
     String to_string() const;
     bool verify() const;
@@ -201,12 +229,13 @@ struct Context {
 
     static void print_file(const StringView& fname);
 
+    Options options;
+
     u8 remote_random[32];
     u8 local_random[32];
     u8 session_id[32];
     u8 session_id_size { 0 };
     CipherSuite cipher;
-    Version version;
     bool is_server { false };
     Vector<Certificate> certificates;
     Certificate private_key;
@@ -242,7 +271,8 @@ struct Context {
 
     struct {
         // Server Name Indicator
-        String SNI; // I hate your existence
+        String SNI;                                                // I hate your existence
+        Optional<ExtendedMasterSecretData> extended_master_secret; // RFC 7627
     } extensions;
 
     u8 request_client_certificate { 0 };
@@ -333,7 +363,7 @@ public:
     Function<void(TLSv12&)> on_tls_certificate_request;
 
 private:
-    explicit TLSv12(Core::Object* parent, Version version = Version::V12);
+    explicit TLSv12(Core::Object* parent, Options = {});
 
     virtual bool common_connect(const struct sockaddr*, socklen_t) override;
 
@@ -343,7 +373,7 @@ private:
     void ensure_hmac(size_t digest_size, bool local);
 
     void update_packet(ByteBuffer& packet);
-    void update_hash(ReadonlyBytes in);
+    void update_hash(ReadonlyBytes in, size_t header_size);
 
     void write_packet(ByteBuffer& packet);
 
