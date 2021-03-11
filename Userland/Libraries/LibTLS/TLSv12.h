@@ -36,6 +36,7 @@
 #include <LibCrypto/BigInt/UnsignedBigInteger.h>
 #include <LibCrypto/Cipher/AES.h>
 #include <LibCrypto/Hash/HashManager.h>
+#include <LibCrypto/KeyExchange/DH.h>
 #include <LibCrypto/PK/RSA.h>
 #include <LibTLS/TLSPacketBuilder.h>
 
@@ -76,6 +77,19 @@ enum class CipherSuite {
     // TODO
     RSA_WITH_AES_128_GCM_SHA256 = 0x009C,
     RSA_WITH_AES_256_GCM_SHA384 = 0x009D,
+
+    // What we already support, but with Ephemeral DH Key exchange
+    DHE_RSA_WITH_AES_128_CBC_SHA = 0x0033,
+    DHE_RSA_WITH_AES_256_CBC_SHA = 0x0039,
+    DHE_RSA_WITH_AES_128_CBC_SHA256 = 0x0067,
+    DHE_RSA_WITH_AES_256_CBC_SHA256 = 0x006B,
+    DHE_RSA_WITH_AES_128_GCM_SHA256 = 0x009E,
+};
+
+enum class EphemeralState {
+    NotEphemeral,
+    EphemeralDH,
+    EphemeralECDH,
 };
 
 #define ENUMERATE_ALERT_DESCRIPTIONS                        \
@@ -201,11 +215,11 @@ struct Options {
     typ name = default_##name();
 
     OPTION_WITH_DEFAULTS(Vector<CipherSuite>, usable_cipher_suites,
-        CipherSuite::RSA_WITH_AES_128_CBC_SHA256,
-        CipherSuite::RSA_WITH_AES_256_CBC_SHA256,
-        CipherSuite::RSA_WITH_AES_128_CBC_SHA,
-        CipherSuite::RSA_WITH_AES_256_CBC_SHA,
-        CipherSuite::RSA_WITH_AES_128_GCM_SHA256)
+        CipherSuite::DHE_RSA_WITH_AES_128_CBC_SHA256,
+        CipherSuite::DHE_RSA_WITH_AES_256_CBC_SHA256,
+        CipherSuite::DHE_RSA_WITH_AES_128_CBC_SHA,
+        CipherSuite::DHE_RSA_WITH_AES_256_CBC_SHA,
+        CipherSuite::DHE_RSA_WITH_AES_128_GCM_SHA256)
 
     OPTION_WITH_DEFAULTS(Version, version, Version::V12)
 
@@ -248,6 +262,8 @@ struct Context {
     } crypto;
 
     Crypto::Hash::Manager handshake_hash;
+
+    Optional<Crypto::KeyExchange::DHKey> dhe_key;
 
     ByteBuffer message_buffer;
     u64 remote_sequence_number { 0 };
@@ -330,7 +346,12 @@ public:
             || suite == CipherSuite::RSA_WITH_AES_256_CBC_SHA256
             || suite == CipherSuite::RSA_WITH_AES_128_CBC_SHA
             || suite == CipherSuite::RSA_WITH_AES_256_CBC_SHA
-            || suite == CipherSuite::RSA_WITH_AES_128_GCM_SHA256;
+            || suite == CipherSuite::RSA_WITH_AES_128_GCM_SHA256
+            || suite == CipherSuite::DHE_RSA_WITH_AES_128_CBC_SHA
+            || suite == CipherSuite::DHE_RSA_WITH_AES_128_CBC_SHA256
+            || suite == CipherSuite::DHE_RSA_WITH_AES_256_CBC_SHA
+            || suite == CipherSuite::DHE_RSA_WITH_AES_256_CBC_SHA256
+            || suite == CipherSuite::DHE_RSA_WITH_AES_128_GCM_SHA256;
     }
 
     bool supports_version(Version v) const
@@ -381,6 +402,7 @@ private:
     ByteBuffer build_change_cipher_spec();
     ByteBuffer build_verify_request();
     void build_random(PacketBuilder&);
+    void build_dhe_public(PacketBuilder&);
 
     bool flush();
     void write_into_socket();
@@ -412,12 +434,17 @@ private:
         case CipherSuite::RSA_WITH_AES_128_CBC_SHA256:
         case CipherSuite::RSA_WITH_AES_128_CBC_SHA:
         case CipherSuite::RSA_WITH_AES_128_GCM_SHA256:
+        case CipherSuite::DHE_RSA_WITH_AES_128_GCM_SHA256:
+        case CipherSuite::DHE_RSA_WITH_AES_128_CBC_SHA256:
+        case CipherSuite::DHE_RSA_WITH_AES_128_CBC_SHA:
         default:
             return 128 / 8;
         case CipherSuite::AES_256_GCM_SHA384:
         case CipherSuite::RSA_WITH_AES_256_CBC_SHA:
         case CipherSuite::RSA_WITH_AES_256_CBC_SHA256:
         case CipherSuite::RSA_WITH_AES_256_GCM_SHA384:
+        case CipherSuite::DHE_RSA_WITH_AES_256_CBC_SHA:
+        case CipherSuite::DHE_RSA_WITH_AES_256_CBC_SHA256:
             return 256 / 8;
         }
     }
@@ -426,6 +453,8 @@ private:
         switch (m_context.cipher) {
         case CipherSuite::RSA_WITH_AES_128_CBC_SHA:
         case CipherSuite::RSA_WITH_AES_256_CBC_SHA:
+        case CipherSuite::DHE_RSA_WITH_AES_128_CBC_SHA:
+        case CipherSuite::DHE_RSA_WITH_AES_256_CBC_SHA:
             return Crypto::Hash::SHA1::digest_size();
         case CipherSuite::AES_256_GCM_SHA384:
         case CipherSuite::RSA_WITH_AES_256_GCM_SHA384:
@@ -437,6 +466,9 @@ private:
         case CipherSuite::RSA_WITH_AES_128_CBC_SHA256:
         case CipherSuite::RSA_WITH_AES_128_GCM_SHA256:
         case CipherSuite::RSA_WITH_AES_256_CBC_SHA256:
+        case CipherSuite::DHE_RSA_WITH_AES_256_CBC_SHA256:
+        case CipherSuite::DHE_RSA_WITH_AES_128_CBC_SHA256:
+        case CipherSuite::DHE_RSA_WITH_AES_128_GCM_SHA256:
         default:
             return Crypto::Hash::SHA256::digest_size();
         }
@@ -451,12 +483,17 @@ private:
         case CipherSuite::RSA_WITH_AES_128_CBC_SHA:
         case CipherSuite::RSA_WITH_AES_256_CBC_SHA256:
         case CipherSuite::RSA_WITH_AES_256_CBC_SHA:
+        case CipherSuite::DHE_RSA_WITH_AES_256_CBC_SHA:
+        case CipherSuite::DHE_RSA_WITH_AES_128_CBC_SHA:
+        case CipherSuite::DHE_RSA_WITH_AES_128_CBC_SHA256:
+        case CipherSuite::DHE_RSA_WITH_AES_256_CBC_SHA256:
         default:
             return 16;
         case CipherSuite::AES_128_GCM_SHA256:
         case CipherSuite::AES_256_GCM_SHA384:
         case CipherSuite::RSA_WITH_AES_128_GCM_SHA256:
         case CipherSuite::RSA_WITH_AES_256_GCM_SHA384:
+        case CipherSuite::DHE_RSA_WITH_AES_128_GCM_SHA256:
             return 8; // 4 bytes of fixed IV, 8 random (nonce) bytes, 4 bytes for counter
                       // GCM specifically asks us to transmit only the nonce, the counter is zero
                       // and the fixed IV is derived from the premaster key.
@@ -470,9 +507,35 @@ private:
         case CipherSuite::AES_256_GCM_SHA384:
         case CipherSuite::RSA_WITH_AES_128_GCM_SHA256:
         case CipherSuite::RSA_WITH_AES_256_GCM_SHA384:
+        case CipherSuite::DHE_RSA_WITH_AES_128_GCM_SHA256:
             return true;
         default:
             return false;
+        }
+    }
+
+    EphemeralState ephemeral_state() const
+    {
+        switch (m_context.cipher) {
+        case CipherSuite::AES_128_GCM_SHA256:
+        case CipherSuite::AES_256_GCM_SHA384:
+        case CipherSuite::AES_128_CCM_SHA256:
+        case CipherSuite::AES_128_CCM_8_SHA256:
+        case CipherSuite::RSA_WITH_AES_128_CBC_SHA:
+        case CipherSuite::RSA_WITH_AES_256_CBC_SHA:
+        case CipherSuite::RSA_WITH_AES_128_CBC_SHA256:
+        case CipherSuite::RSA_WITH_AES_256_CBC_SHA256:
+        case CipherSuite::RSA_WITH_AES_128_GCM_SHA256:
+        case CipherSuite::RSA_WITH_AES_256_GCM_SHA384:
+        default:
+            return EphemeralState::NotEphemeral;
+
+        case CipherSuite::DHE_RSA_WITH_AES_128_CBC_SHA:
+        case CipherSuite::DHE_RSA_WITH_AES_256_CBC_SHA:
+        case CipherSuite::DHE_RSA_WITH_AES_128_CBC_SHA256:
+        case CipherSuite::DHE_RSA_WITH_AES_256_CBC_SHA256:
+        case CipherSuite::DHE_RSA_WITH_AES_128_GCM_SHA256:
+            return EphemeralState::EphemeralDH;
         }
     }
 

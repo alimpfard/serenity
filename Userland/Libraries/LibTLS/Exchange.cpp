@@ -26,6 +26,7 @@
 
 #include <AK/Debug.h>
 #include <LibCrypto/ASN1/DER.h>
+#include <LibCrypto/KeyExchange/DH.h>
 #include <LibCrypto/PK/Code/EMSA_PSS.h>
 #include <LibTLS/TLSv12.h>
 
@@ -113,7 +114,7 @@ void TLSv12::pseudorandom_function(Bytes output, ReadonlyBytes secret, const u8*
 {
     if (!secret.size()) {
         dbgln("null secret");
-        return;
+        VERIFY_NOT_REACHED();
     }
 
     // RFC 5246: "In this section, we define one PRF, based on HMAC.  This PRF with the
@@ -256,7 +257,20 @@ ByteBuffer TLSv12::build_client_key_exchange()
 {
     PacketBuilder builder { MessageType::Handshake, m_context.options.version };
     builder.append((u8)HandshakeType::ClientKeyExchange);
-    build_random(builder);
+
+    switch (ephemeral_state()) {
+    case EphemeralState::NotEphemeral:
+        build_random(builder);
+        break;
+    case EphemeralState::EphemeralDH:
+        dbgln("Building a client kex message for DHE!");
+        build_dhe_public(builder);
+        // Drop the ephemeral key, it's not useful anymore.
+        m_context.dhe_key.clear();
+        break;
+    case EphemeralState::EphemeralECDH:
+        TODO();
+    }
 
     m_context.connection_status = ConnectionStatus::KeyExchange;
 
@@ -267,10 +281,141 @@ ByteBuffer TLSv12::build_client_key_exchange()
     return packet;
 }
 
-ssize_t TLSv12::handle_server_key_exchange(ReadonlyBytes)
+ssize_t TLSv12::handle_server_key_exchange(ReadonlyBytes buffer)
 {
-    dbgln("FIXME: parse_server_key_exchange");
-    return 0;
+    size_t res = 0;
+
+    if (buffer.size() < 3)
+        return (i8)Error::NeedMoreData;
+
+    size_t size = buffer[0] * 0x10000 + buffer[1] * 0x100 + buffer[2];
+    res += 3;
+
+    if (buffer.size() - res < size)
+        return (i8)Error::NeedMoreData;
+
+    if (size == 0)
+        return res;
+
+    auto ephemeral = ephemeral_state();
+
+    VERIFY(ephemeral != EphemeralState::EphemeralECDH);
+
+    auto has_dh_params = ephemeral == EphemeralState::EphemeralDH;
+
+    auto read_dh_param = [](ReadonlyBytes in_buffer, ReadonlyBytes& out) -> ssize_t {
+        size_t res = 0;
+        if (in_buffer.size() < 2)
+            return (i8)Error::NeedMoreData;
+        u16 size = ntohs(*(const u16*)in_buffer.offset_pointer(0));
+        res += 2;
+        if (in_buffer.size() - res < size)
+            return (i8)Error::NeedMoreData;
+
+        out = in_buffer.slice(res, size);
+        res += size;
+        return res;
+    };
+
+    ReadonlyBytes dh_p, dh_g, dh_y;
+    if (has_dh_params) {
+        auto dh_res = read_dh_param(buffer.slice(res), dh_p);
+        if (dh_res <= 0)
+            return (i8)Error::BrokenPacket;
+        res += dh_res;
+
+        dh_res = read_dh_param(buffer.slice(res), dh_g);
+        if (dh_res <= 0)
+            return (i8)Error::BrokenPacket;
+        res += dh_res;
+
+        dh_res = read_dh_param(buffer.slice(res), dh_y);
+        if (dh_res <= 0)
+            return (i8)Error::BrokenPacket;
+        res += dh_res;
+
+        if constexpr (TLS_DEBUG || true) {
+            dbgln("DH params (p, g, y):");
+            print_buffer(dh_p);
+            print_buffer(dh_g);
+            print_buffer(dh_y);
+        }
+    }
+
+    u8 hash_algorithm, sign_algorithm;
+    ReadonlyBytes signature;
+    {
+        // Read the signature
+        if (buffer.size() < 4 + res)
+            return (i8)Error::BrokenPacket;
+
+        hash_algorithm = buffer[res++];
+        sign_algorithm = buffer[res++];
+        u16 size = NetworkOrdered<u16>(*(const u16*)(buffer.offset_pointer(res)));
+        res += 2;
+        if (buffer.size() - res < size)
+            return (i8)Error::BrokenPacket;
+
+        signature = buffer.slice(res, size);
+        res += size;
+    }
+
+    // FIXME: Actually check the signature.
+    (void)hash_algorithm;
+    (void)sign_algorithm;
+    (void)signature;
+
+    if constexpr (TLS_DEBUG) {
+        if (buffer.size() > res) {
+            dbgln("Extra bytes at the end of ServerKeyExchange message ({} bytes)", buffer.size() - res);
+            print_buffer(buffer.slice(res));
+        }
+    }
+
+    if (ephemeral == EphemeralState::EphemeralDH) {
+        auto ephemeral_dh_key = [&](auto&& p, auto&& g) -> Crypto::KeyExchange::DHKey {
+#if 0
+            auto key_size = max(dh_p.size(), dh_g.size());
+            auto x_buffer = ByteBuffer::create_uninitialized(key_size);
+            fill_with_random(x_buffer.data(), x_buffer.size());
+            auto x = Crypto::UnsignedBigInteger::import_data(x_buffer);
+#else
+            Crypto::UnsignedBigInteger x { 42 }; // FIXME: This is too random, make sure it's less random by actually running the code above.
+#endif
+            dbgln("Gonna calculate e{}^e{} mod e{}, brace yourself...", g.trimmed_length(), x.trimmed_length(), p.trimmed_length());
+            return {
+                x,
+                Crypto::NumberTheory::ModularPower(g, x, p),
+                p,
+                g,
+            };
+        };
+
+        auto make_dh_secret = [&] {
+            auto random_key = ephemeral_dh_key(
+                Crypto::UnsignedBigInteger::import_data(dh_p),
+                Crypto::UnsignedBigInteger::import_data(dh_g));
+
+            Crypto::KeyExchange::DHKey server_key { {}, Crypto::UnsignedBigInteger::import_data(dh_y), {}, {}, {} };
+
+            m_context.dhe_key = move(random_key);
+
+            auto buffer = ByteBuffer::create_uninitialized(dh_y.size());
+            auto bytes = buffer.bytes();
+            Crypto::KeyExchange::DH { m_context.dhe_key.value(), server_key }.generate_shared_secret(bytes);
+
+            buffer.trim(bytes.size());
+            return buffer;
+        };
+
+        m_context.premaster_key = make_dh_secret();
+
+        if constexpr (TLS_DEBUG || true) {
+            dbgln("Ephemeral exchange complete, premaster key is:");
+            print_buffer(m_context.premaster_key);
+        }
+    }
+    return res;
 }
 
 ssize_t TLSv12::handle_verify(ReadonlyBytes)
@@ -278,5 +423,4 @@ ssize_t TLSv12::handle_verify(ReadonlyBytes)
     dbgln("FIXME: parse_verify");
     return 0;
 }
-
 }

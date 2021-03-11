@@ -309,6 +309,30 @@ void TLSv12::build_random(PacketBuilder& builder)
     builder.append(outbuf);
 }
 
+void TLSv12::build_dhe_public(PacketBuilder& builder)
+{
+    VERIFY(m_context.dhe_key.has_value());
+
+    const auto& key = m_context.dhe_key.value();
+
+    u8 buf[0xfff];
+    Bytes buffer { buf, 0xfff };
+    auto y_size = key.y.export_data(buffer);
+    buffer = buffer.slice(0, y_size);
+
+    dbgln("Exported the public component and ended up with {} bytes", y_size);
+    print_buffer(buffer);
+
+    if (!compute_master_secret(m_context.premaster_key.size())) {
+        dbgln("oh noes we could not derive a master key :(");
+        return;
+    }
+
+    builder.append_u24(y_size + 2);
+    builder.append((u16)y_size);
+    builder.append(buffer);
+}
+
 ssize_t TLSv12::handle_payload(ReadonlyBytes vbuffer)
 {
     if (m_context.connection_status == ConnectionStatus::Established) {
