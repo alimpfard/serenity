@@ -196,7 +196,7 @@ void syscall_handler(TrapFrame* trap)
     }
 
     if (process.space().enforces_syscall_regions() && !calling_region->is_syscall_region()) {
-        dbgln("Syscall from non-syscall region");
+        dbgln("Syscall ({}) from non-syscall region", Syscall::to_string((Syscall::Function)regs.eax));
         handle_crash(regs, "Syscall from non-syscall region", SIGSEGV);
     }
 

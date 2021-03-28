@@ -42,18 +42,18 @@ HashMap<String, RefPtr<ELF::DynamicLoader>> g_elf_objects;
 
 extern "C" {
 
-int dlclose(void*)
+__attribute__((__weak__)) int dlclose(void*)
 {
     g_dlerror_msg = "dlclose not implemented!";
     return -1;
 }
 
-char* dlerror()
+__attribute__((__weak__)) char* dlerror()
 {
     return const_cast<char*>(g_dlerror_msg.characters());
 }
 
-void* dlopen(const char* filename, int flags)
+__attribute__((__weak__)) void* dlopen(const char* filename, int flags)
 {
     // FIXME: Create a global mutex/semaphore/lock for dlopen/dlclose/dlsym and (?) dlerror
     // FIXME: refcount?
@@ -99,7 +99,7 @@ void* dlopen(const char* filename, int flags)
     return const_cast<ELF::DynamicLoader*>(g_elf_objects.get(basename).value());
 }
 
-void* dlsym(void* handle, const char* symbol_name)
+__attribute__((__weak__)) void* dlsym(void* handle, const char* symbol_name)
 {
     // FIXME: When called with a NULL handle we're supposed to search every dso in the process... that'll get expensive
     VERIFY(handle);

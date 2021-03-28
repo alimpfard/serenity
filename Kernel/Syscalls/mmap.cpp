@@ -635,9 +635,6 @@ KResultOr<int> Process::sys$msyscall(Userspace<void*> address)
     if (!region)
         return EINVAL;
 
-    if (!region->is_mmap())
-        return EINVAL;
-
     region->set_syscall_region(true);
     return 0;
 }

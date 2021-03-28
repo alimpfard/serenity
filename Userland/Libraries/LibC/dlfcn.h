@@ -36,9 +36,9 @@ __BEGIN_DECLS
 #define RTLD_GLOBAL 8
 #define RTLD_LOCAL 16
 
-int dlclose(void*);
-char* dlerror();
-void* dlopen(const char*, int);
-void* dlsym(void*, const char*);
+__attribute__((__weak__)) int dlclose(void*);
+__attribute__((__weak__)) char* dlerror();
+__attribute__((__weak__)) void* dlopen(const char*, int);
+__attribute__((__weak__)) void* dlsym(void*, const char*);
 
 __END_DECLS
