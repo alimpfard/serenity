@@ -189,6 +189,14 @@ void LineProgram::handle_standard_opcode(u8 opcode)
         m_address += address_increment;
         break;
     }
+    case StandardOpcodes::FixAdvancePc: {
+        u16 operand;
+        m_stream.read({ &operand, sizeof(operand) });
+        m_address += operand;
+
+        dbgln_if(DWARF_DEBUG, "FixAdvancePc: advance pc by: {} to: {}", operand, m_address);
+        break;
+    }
     case StandardOpcodes::SetIsa: {
         size_t isa;
         m_stream.read_LEB128_unsigned(isa);
