@@ -1,0 +1,45 @@
+From 93036351931a3a1a5f38a5fd1d42a0d7236ada1d Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Tue, 13 Apr 2021 18:20:12 +0430
+Subject: [PATCH 10/14] implement strsep for the one file that needs it
+
+---
+ .../os/serenity/cgroupSubsystem_serenity.cpp  | 22 +++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/src/hotspot/os/serenity/cgroupSubsystem_serenity.cpp b/src/hotspot/os/serenity/cgroupSubsystem_serenity.cpp
+index db6adbfaac5..f5ef38c99f7 100644
+--- a/src/hotspot/os/serenity/cgroupSubsystem_serenity.cpp
++++ b/src/hotspot/os/serenity/cgroupSubsystem_serenity.cpp
+@@ -34,6 +34,28 @@
+ #include "runtime/os.hpp"
+ #include "utilities/globalDefinitions.hpp"
+ 
++static char *strsep(char** stringp, const char *delim) {
++    auto* begin = *stringp;
++    // if *stringp is NULL, ... shall return NULL and do nothing.
++    if (begin == NULL)
++        return NULL;
++
++    // ... otherwise, find the first token that is delimited by one of the bytes in delim...
++    auto* end = begin + strcspn (begin, delim);
++
++    if (*end) {
++        // ...This token is terminated by overwriting the delimiter with a null byte, and *stringp is updated to point past the token...
++        *end++ = '\0';
++        *stringp = end;
++    } else {
++        // ...in case no delimiter was found, the token is taken to be the entire string, and *stringp is made NULL.
++        *stringp = NULL;
++    }
++
++    // ... The strsep() function returns a pointer to the token...
++    return begin;
++}
++
+ CgroupSubsystem* CgroupSubsystemFactory::create() {
+   CgroupV1MemoryController* memory = NULL;
+   CgroupV1Controller* cpuset = NULL;
+-- 
+2.31.1
+

@@ -1,0 +1,27 @@
+From 2f855ff4b27afd7bc55ef90525e89f18cbf7890d Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Tue, 13 Apr 2021 17:13:43 +0430
+Subject: [PATCH 09/14] "BSD-only" includes macOS and serenity, I guess
+
+---
+ src/hotspot/share/utilities/macros.hpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/hotspot/share/utilities/macros.hpp b/src/hotspot/share/utilities/macros.hpp
+index c2c34974013..c289aa795a9 100644
+--- a/src/hotspot/share/utilities/macros.hpp
++++ b/src/hotspot/share/utilities/macros.hpp
+@@ -431,8 +431,8 @@
+ #define NOT_WINDOWS(code) code
+ #endif
+ 
+-#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__)
+-#ifndef BSD
++#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__APPLE__) || defined(__serenity__)
++#if !defined(BSD) && !defined(__serenity__)
+ #define BSD
+ #endif // BSD defined in <sys/param.h>
+ #define BSD_ONLY(code) code
+-- 
+2.31.1
+

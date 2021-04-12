@@ -1,0 +1,43 @@
+From 34c61b481bd155f8ae5141fd29c4391f60fe137d Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Tue, 13 Apr 2021 01:17:17 +0430
+Subject: [PATCH 03/14] Disable linux-only requirements
+
+---
+ make/autoconf/libraries.m4 | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/make/autoconf/libraries.m4 b/make/autoconf/libraries.m4
+index 6ad9715a9fb..197f119b7bf 100644
+--- a/make/autoconf/libraries.m4
++++ b/make/autoconf/libraries.m4
+@@ -40,7 +40,7 @@ m4_include([lib-tests.m4])
+ AC_DEFUN_ONCE([LIB_DETERMINE_DEPENDENCIES],
+ [
+   # Check if X11 is needed
+-  if test "x$OPENJDK_TARGET_OS" = xwindows || test "x$OPENJDK_TARGET_OS" = xmacosx; then
++  if test "x$OPENJDK_TARGET_OS" = xwindows || test "x$OPENJDK_TARGET_OS" = xmacosx || test "x$OPENJDK_TARGET_OS" = xserenity; then
+     # No X11 support on windows or macosx
+     NEEDS_LIB_X11=false
+   elif test "x$ENABLE_HEADLESS_ONLY" = xtrue; then
+@@ -52,7 +52,7 @@ AC_DEFUN_ONCE([LIB_DETERMINE_DEPENDENCIES],
+   fi
+ 
+   # Check if fontconfig is needed
+-  if test "x$OPENJDK_TARGET_OS" = xwindows || test "x$OPENJDK_TARGET_OS" = xmacosx; then
++  if test "x$OPENJDK_TARGET_OS" = xwindows || test "x$OPENJDK_TARGET_OS" = xmacosx || test "x$OPENJDK_TARGET_OS" = xserenity; then
+     # No fontconfig support on windows or macosx
+     NEEDS_LIB_FONTCONFIG=false
+   else
+@@ -62,7 +62,7 @@ AC_DEFUN_ONCE([LIB_DETERMINE_DEPENDENCIES],
+   fi
+ 
+   # Check if cups is needed
+-  if test "x$OPENJDK_TARGET_OS" = xwindows; then
++  if test "x$OPENJDK_TARGET_OS" = xwindows || test "x$OPENJDK_TARGET_OS" = xserenity; then
+     # Windows have a separate print system
+     NEEDS_LIB_CUPS=false
+   else
+-- 
+2.31.1
+

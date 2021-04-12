@@ -1,0 +1,25 @@
+From 0e1618bbfa10a23b09ae2e2c64c4f062c3e8a279 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Tue, 13 Apr 2021 18:40:24 +0430
+Subject: [PATCH 11/14] exec_elf
+
+---
+ src/hotspot/share/utilities/elfFile.hpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/hotspot/share/utilities/elfFile.hpp b/src/hotspot/share/utilities/elfFile.hpp
+index 0db84723845..d11419229b1 100644
+--- a/src/hotspot/share/utilities/elfFile.hpp
++++ b/src/hotspot/share/utilities/elfFile.hpp
+@@ -29,6 +29,8 @@
+ 
+ #if defined(__OpenBSD__)
+ #include <sys/exec_elf.h>
++#elif defined(__serenity__)
++#include <LibELF/exec_elf.h>
+ #else
+ #include <elf.h>
+ #endif
+-- 
+2.31.1
+

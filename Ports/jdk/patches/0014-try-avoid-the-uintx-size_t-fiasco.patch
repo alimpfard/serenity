@@ -1,0 +1,25 @@
+From 8d9fdbf85dc7888975d717bbef42c5f1ee00a81a Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Wed, 14 Apr 2021 19:01:08 +0430
+Subject: [PATCH 14/14] try avoid the uintx/size_t fiasco
+
+---
+ src/hotspot/share/gc/serial/defNewGeneration.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/hotspot/share/gc/serial/defNewGeneration.cpp b/src/hotspot/share/gc/serial/defNewGeneration.cpp
+index 271d0d764b5..eb15be043c6 100644
+--- a/src/hotspot/share/gc/serial/defNewGeneration.cpp
++++ b/src/hotspot/share/gc/serial/defNewGeneration.cpp
+@@ -203,7 +203,7 @@ void DefNewGeneration::compute_space_boundaries(uintx minimum_eden_size,
+     // May happen due to 64Kb rounding, if so adjust eden size back up
+     minimum_eden_size = align_up(minimum_eden_size, SpaceAlignment);
+     uintx maximum_survivor_size = (size - minimum_eden_size) / 2;
+-    uintx unaligned_survivor_size =
++    size_t unaligned_survivor_size =
+       align_down(maximum_survivor_size, SpaceAlignment);
+     survivor_size = MAX2(unaligned_survivor_size, SpaceAlignment);
+     eden_size = size - (2*survivor_size);
+-- 
+2.31.1
+

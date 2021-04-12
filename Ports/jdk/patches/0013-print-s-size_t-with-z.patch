@@ -1,0 +1,35 @@
+From 220fb081a0aca72952203461c203e6345fcc85ec Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Wed, 14 Apr 2021 02:35:25 +0430
+Subject: [PATCH 13/14] print (s)size_t with %z
+
+---
+ src/hotspot/share/utilities/globalDefinitions.hpp | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/src/hotspot/share/utilities/globalDefinitions.hpp b/src/hotspot/share/utilities/globalDefinitions.hpp
+index ffa88c4ac8a..249d5c70c3b 100644
+--- a/src/hotspot/share/utilities/globalDefinitions.hpp
++++ b/src/hotspot/share/utilities/globalDefinitions.hpp
+@@ -139,12 +139,12 @@ class oopDesc;
+ 
+ #define INTPTR_FORMAT_W(width)   "%" #width PRIxPTR
+ 
+-#define SSIZE_FORMAT             "%"   PRIdPTR
+-#define SIZE_FORMAT              "%"   PRIuPTR
+-#define SIZE_FORMAT_HEX          "0x%" PRIxPTR
+-#define SSIZE_FORMAT_W(width)    "%"   #width PRIdPTR
+-#define SIZE_FORMAT_W(width)     "%"   #width PRIuPTR
+-#define SIZE_FORMAT_HEX_W(width) "0x%" #width PRIxPTR
++#define SSIZE_FORMAT             "%zd"
++#define SIZE_FORMAT              "%zu"
++#define SIZE_FORMAT_HEX          "0x%zx"
++#define SSIZE_FORMAT_W(width)    "%"   #width "zd"
++#define SIZE_FORMAT_W(width)     "%"   #width "zu"
++#define SIZE_FORMAT_HEX_W(width) "0x%" #width "zx"
+ 
+ #define INTX_FORMAT           "%" PRIdPTR
+ #define UINTX_FORMAT          "%" PRIuPTR
+-- 
+2.31.1
+

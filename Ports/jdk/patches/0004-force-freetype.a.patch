@@ -1,0 +1,25 @@
+From e45d04edb48494a9ebcec250bf0ad2fb1a105ea7 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Tue, 13 Apr 2021 01:41:19 +0430
+Subject: [PATCH 04/14] force freetype.a
+
+---
+ make/autoconf/lib-freetype.m4 | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/make/autoconf/lib-freetype.m4 b/make/autoconf/lib-freetype.m4
+index 6a710934247..2ea85fb85d8 100644
+--- a/make/autoconf/lib-freetype.m4
++++ b/make/autoconf/lib-freetype.m4
+@@ -49,7 +49,7 @@ AC_DEFUN([LIB_CHECK_POTENTIAL_FREETYPE],
+     # Include file found, let's continue the sanity check.
+     AC_MSG_NOTICE([Found freetype include files at $POTENTIAL_FREETYPE_INCLUDE_PATH using $METHOD])
+ 
+-    FREETYPE_LIB_NAME="${LIBRARY_PREFIX}${FREETYPE_BASE_NAME}${SHARED_LIBRARY_SUFFIX}"
++    FREETYPE_LIB_NAME="${LIBRARY_PREFIX}${FREETYPE_BASE_NAME}.a"
+     if ! test -s "$POTENTIAL_FREETYPE_LIB_PATH/$FREETYPE_LIB_NAME"; then
+       AC_MSG_NOTICE([Could not find $POTENTIAL_FREETYPE_LIB_PATH/$FREETYPE_LIB_NAME. Ignoring location.])
+       FOUND_FREETYPE=no
+-- 
+2.31.1
+

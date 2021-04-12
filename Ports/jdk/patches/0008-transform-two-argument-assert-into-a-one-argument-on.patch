@@ -1,0 +1,47 @@
+From 6895b0aab8a1df29cac4335835c8bd74622a7aec Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Tue, 13 Apr 2021 16:16:25 +0430
+Subject: [PATCH 08/14] transform two-argument assert into a one-argument one
+
+---
+ src/hotspot/os/posix/include/jvm_md.h | 9 +++++++++
+ src/hotspot/share/utilities/debug.hpp | 3 +++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/src/hotspot/os/posix/include/jvm_md.h b/src/hotspot/os/posix/include/jvm_md.h
+index 2c8ebe06d70..0673a85e86f 100644
+--- a/src/hotspot/os/posix/include/jvm_md.h
++++ b/src/hotspot/os/posix/include/jvm_md.h
+@@ -83,6 +83,15 @@
+ 
+ #include <sys/socket.h>   // for socklen_t
+ 
++#ifdef __serenity__
++#include <assert.h>
++#ifdef assert
++#undef assert
++// That's one weird assert() you've got there.
++#define assert(x, ...) _do_assert((x) || (printf(__VA_ARGS__) && 0))
++#endif
++#endif // __serenity__
++
+ #define JVM_SIGINT     SIGINT
+ #define JVM_SIGTERM    SIGTERM
+ 
+diff --git a/src/hotspot/share/utilities/debug.hpp b/src/hotspot/share/utilities/debug.hpp
+index 8f6858ac589..3d62c74917f 100644
+--- a/src/hotspot/share/utilities/debug.hpp
++++ b/src/hotspot/share/utilities/debug.hpp
+@@ -62,6 +62,9 @@ do {                                                                           \
+ #endif
+ 
+ // For backward compatibility.
++#ifdef assert
++#undef assert
++#endif
+ #define assert(p, ...) vmassert(p, __VA_ARGS__)
+ 
+ #define precond(p)   assert(p, "precond")
+-- 
+2.31.1
+

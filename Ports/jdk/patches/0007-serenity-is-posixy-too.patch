@@ -1,0 +1,40 @@
+From 8ae834bf222fb5c51faf16681694246e6c94f4d2 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Tue, 13 Apr 2021 11:21:03 +0430
+Subject: [PATCH 07/14] serenity is posixy too
+
+---
+ src/hotspot/share/runtime/atomic.hpp    | 3 ++-
+ src/hotspot/share/runtime/semaphore.hpp | 2 +-
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/hotspot/share/runtime/atomic.hpp b/src/hotspot/share/runtime/atomic.hpp
+index 0c6906173e6..00546884f49 100644
+--- a/src/hotspot/share/runtime/atomic.hpp
++++ b/src/hotspot/share/runtime/atomic.hpp
+@@ -606,7 +606,8 @@ class ScopedFence : public ScopedFenceGeneral<T> {
+ 
+ // size_t casts...
+ #if (SIZE_MAX != UINTPTR_MAX)
+-#error size_t is not WORD_SIZE, interesting platform, but missing implementation here
++// Trust me, it is, but you're just not smart enough to think about SIZE_MAX not being a literal
++// #error size_t is not WORD_SIZE, interesting platform, but missing implementation here
+ #endif
+ 
+ template<typename T>
+diff --git a/src/hotspot/share/runtime/semaphore.hpp b/src/hotspot/share/runtime/semaphore.hpp
+index 0e19c101da0..18e49032bcc 100644
+--- a/src/hotspot/share/runtime/semaphore.hpp
++++ b/src/hotspot/share/runtime/semaphore.hpp
+@@ -28,7 +28,7 @@
+ #include "memory/allocation.hpp"
+ #include "utilities/globalDefinitions.hpp"
+ 
+-#if defined(LINUX) || defined(AIX)
++#if defined(LINUX) || defined(AIX) || defined(__serenity__)
+ # include "semaphore_posix.hpp"
+ #elif defined(BSD)
+ # include "semaphore_bsd.hpp"
+-- 
+2.31.1
+

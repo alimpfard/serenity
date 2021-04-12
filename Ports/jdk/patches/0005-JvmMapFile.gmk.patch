@@ -1,0 +1,35 @@
+From f4eae67b213a969309ac677dd2f1f4c36f9b3a74 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Tue, 13 Apr 2021 01:50:52 +0430
+Subject: [PATCH 05/14] JvmMapFile.gmk
+
+---
+ make/hotspot/lib/JvmMapfile.gmk | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/make/hotspot/lib/JvmMapfile.gmk b/make/hotspot/lib/JvmMapfile.gmk
+index 5cba93178c7..6d3ba779cae 100644
+--- a/make/hotspot/lib/JvmMapfile.gmk
++++ b/make/hotspot/lib/JvmMapfile.gmk
+@@ -63,7 +63,17 @@ ifeq ($(call isTargetOs, linux), true)
+       '{ \
+         if ($$3 ~ /$(FILTER_SYMBOLS_PATTERN)/) print $$3; \
+       }'
+-
++else ifeq ($(call isTargetOs, serenity), true)
++  DUMP_SYMBOLS_CMD := $(NM) --defined-only *.o
++  ifneq ($(FILTER_SYMBOLS_PATTERN), )
++    FILTER_SYMBOLS_PATTERN := $(FILTER_SYMBOLS_PATTERN)|
++  endif
++  FILTER_SYMBOLS_PATTERN := $(FILTER_SYMBOLS_PATTERN)^_ZTV|^gHotSpotVM|^UseSharedSpaces$$
++  FILTER_SYMBOLS_PATTERN := $(FILTER_SYMBOLS_PATTERN)|^_ZN9Arguments17SharedArchivePathE$$
++  FILTER_SYMBOLS_AWK_SCRIPT := \
++      '{ \
++        if ($$3 ~ /$(FILTER_SYMBOLS_PATTERN)/) print $$3; \
++      }'
+ else ifeq ($(call isTargetOs, macosx), true)
+   # nm on macosx prints out "warning: nm: no name list" to stderr for
+   # files without symbols. Hide this, even at the expense of hiding real errors.
+-- 
+2.31.1
+

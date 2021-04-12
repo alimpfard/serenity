@@ -1,0 +1,77 @@
+From 58ea8b6bec6f01b8005f1b630158934e64fbc358 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Wed, 14 Apr 2021 01:08:22 +0430
+Subject: [PATCH 12/14] no-exec-stack
+
+---
+ src/hotspot/os/serenity/decoder_serenity.cpp | 35 ++------------------
+ src/hotspot/share/utilities/elfFile.hpp      |  8 ++++-
+ 2 files changed, 9 insertions(+), 34 deletions(-)
+
+diff --git a/src/hotspot/os/serenity/decoder_serenity.cpp b/src/hotspot/os/serenity/decoder_serenity.cpp
+index daa12ec6f6d..c49a9831ff1 100644
+--- a/src/hotspot/os/serenity/decoder_serenity.cpp
++++ b/src/hotspot/os/serenity/decoder_serenity.cpp
+@@ -51,38 +51,7 @@ bool ElfDecoder::demangle(const char* symbol, char *buf, int buflen) {
+   return false;
+ }
+ 
+-// Returns true if the elf file is marked NOT to require an executable stack,
+-// or if the file could not be opened.
+-// Returns false if the elf file requires an executable stack, the stack flag
+-// is not set at all, or if the file can not be read.
++// Serentiy does not allow executable stacks.
+ bool ElfFile::specifies_noexecstack(const char* filepath) {
+-  if (filepath == NULL) return true;
+-
+-  FILE* file = fopen(filepath, "r");
+-  if (file == NULL)  return true;
+-
+-  // AARCH64 defaults to noexecstack. All others default to execstack.
+-  bool result = AARCH64_ONLY(true) NOT_AARCH64(false);
+-
+-  // Read file header
+-  Elf_Ehdr head;
+-  if (fread(&head, sizeof(Elf_Ehdr), 1, file) == 1 &&
+-      is_elf_file(head) &&
+-      fseek(file, head.e_phoff, SEEK_SET) == 0) {
+-
+-    // Read program header table
+-    Elf_Phdr phdr;
+-    for (int index = 0; index < head.e_phnum; index ++) {
+-      if (fread((void*)&phdr, sizeof(Elf_Phdr), 1, file) != 1) {
+-        result = false;
+-        break;
+-      }
+-      if (phdr.p_type == PT_GNU_STACK) {
+-        result = (phdr.p_flags == (PF_R | PF_W));
+-        break;
+-      }
+-    }
+-  }
+-  fclose(file);
+-  return result;
++    return true;
+ }
+diff --git a/src/hotspot/share/utilities/elfFile.hpp b/src/hotspot/share/utilities/elfFile.hpp
+index d11419229b1..25f71edab59 100644
+--- a/src/hotspot/share/utilities/elfFile.hpp
++++ b/src/hotspot/share/utilities/elfFile.hpp
+@@ -176,7 +176,13 @@ public:
+   // Returns false if the elf file requires an executable stack, the stack flag
+   // is not set at all, or if the file can not be read.
+   // On systems other than linux it always returns false.
+-  static bool specifies_noexecstack(const char* filepath) NOT_LINUX({ return false; });
++  static bool specifies_noexecstack(const char* filepath) 
++#ifndef __serenity__
++      NOT_LINUX({ return false; });
++#else
++      ;
++#endif
++
+ private:
+   // sanity check, if the file is a real elf file
+   static bool is_elf_file(Elf_Ehdr&);
+-- 
+2.31.1
+

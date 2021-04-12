@@ -1,0 +1,27 @@
+From 51c709807272148f375ef6628a1cfab2d04101e9 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Tue, 13 Apr 2021 01:11:02 +0430
+Subject: [PATCH 02/14] Teach platform.m4 about serenity
+
+---
+ make/autoconf/platform.m4 | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/make/autoconf/platform.m4 b/make/autoconf/platform.m4
+index 181fdbf701d..f1635910455 100644
+--- a/make/autoconf/platform.m4
++++ b/make/autoconf/platform.m4
+@@ -190,6 +190,10 @@ AC_DEFUN([PLATFORM_EXTRACT_VARS_FROM_OS],
+       VAR_OS=linux
+       VAR_OS_TYPE=unix
+       ;;
++    *serenity*)
++      VAR_OS=serenity
++      VAR_OS_TYPE=unix
++    ;;
+     *darwin*)
+       VAR_OS=macosx
+       VAR_OS_TYPE=unix
+-- 
+2.31.1
+

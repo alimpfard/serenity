@@ -37,6 +37,7 @@ Please make sure to keep this list up to date when adding and updating ports. :^
 | [`grep`](grep/)                | GNU Grep                                      | 2.5.4             | https://www.gnu.org/software/grep/                    |
 | [`hatari`](hatari/)            | Atari ST/STE/TT/Falcon emulator               | 2.4.0-devel       | https://hatari.tuxfamily.org/                         |
 | [`indent`](indent/)            | GNU indent                                    | 2.2.11            | https://www.gnu.org/software/indent/                  |
+| [`jdk`](jdk/)                  | jdk (OpenJDK)                                 | 17                | https://github.com/openjdk/jdk                        |
 | [`jot`](jot/)                  | jot (OpenBSD)                                 | 6.6               | https://github.com/ibara/libpuffy                     |
 | [`jq`](jq/)                    | jq                                            | 1.6               | https://stedolan.github.io/jq/                        |
 | [`klong`](klong/)              | Klong                                         | 20190926          | http://t3x.org/klong/                                 |
