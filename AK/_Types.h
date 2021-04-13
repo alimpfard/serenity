@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2020, Itamar S. <itamar8910@gmail.com>
+ * Copyright (c) 2018-2020, Andreas Kling <kling@serenityos.org>
+ * Copyright (c) 2021, the SerenityOS developers.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,23 +27,11 @@
 
 #pragma once
 
-#include <AK/_Types.h>
-
-struct __attribute__((packed)) PtraceRegisters {
-    __serenity_u32 eax;
-    __serenity_u32 ecx;
-    __serenity_u32 edx;
-    __serenity_u32 ebx;
-    __serenity_u32 esp;
-    __serenity_u32 ebp;
-    __serenity_u32 esi;
-    __serenity_u32 edi;
-    __serenity_u32 eip;
-    __serenity_u32 eflags;
-    __serenity_u32 cs;
-    __serenity_u32 ss;
-    __serenity_u32 ds;
-    __serenity_u32 es;
-    __serenity_u32 fs;
-    __serenity_u32 gs;
-};
+typedef __UINT64_TYPE__ __serenity_u64;
+typedef __UINT32_TYPE__ __serenity_u32;
+typedef __UINT16_TYPE__ __serenity_u16;
+typedef __UINT8_TYPE__ __serenity_u8;
+typedef __INT64_TYPE__ __serenity_i64;
+typedef __INT32_TYPE__ __serenity_i32;
+typedef __INT16_TYPE__ __serenity_i16;
+typedef __INT8_TYPE__ __serenity_i8;
