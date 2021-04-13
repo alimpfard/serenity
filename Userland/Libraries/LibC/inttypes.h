@@ -26,6 +26,7 @@
 
 #pragma once
 
+#include <AK/Arch.h>
 #include <bits/stdint.h>
 #include <sys/cdefs.h>
 
@@ -55,7 +56,14 @@ __BEGIN_DECLS
 #define PRIX64 "llX"
 
 #define __PRI64_PREFIX "ll"
-#define __PRIPTR_PREFIX
+
+#if ARCH(I386)
+#    define __PRIPTR_PREFIX
+#elif ARCH(x86_64)
+#    define __PRIPTR_PREFIX "l"
+#else
+#    define __PRIPTR_PREFIX
+#endif
 
 #define PRIuPTR __PRIPTR_PREFIX "u"
 #define PRIdPTR __PRIPTR_PREFIX "d"
