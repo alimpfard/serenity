@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, Leon Albrecht <leon2002.la@gmail.com>
+ * Copyright (c) 2021, the SerenityOS developers.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,17 +26,12 @@
 
 #pragma once
 
-// Note: Be _very_ careful not to depend on C++ here :)
-#include <AK/Arch.h>
-
-#if ARCH(I386)
-#    include "i386/regs.h"
-#elif ARCH(X86_64)
-#    include "x86_64/regs.h"
-#else
-#    error "Arch not supported?"
+#ifdef __i386__
+#    define AK_ARCH_I386 1
 #endif
 
-#ifndef __cplusplus
-typedef struct PtraceRegisters PtraceRegisters;
+#ifdef __x86_64__
+#    define AK_ARCH_X86_64 1
 #endif
+
+#define ARCH(arch) (defined(AK_ARCH_##arch) && AK_ARCH_##arch)

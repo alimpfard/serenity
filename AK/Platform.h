@@ -26,13 +26,7 @@
 
 #pragma once
 
-#ifdef __i386__
-#    define AK_ARCH_I386 1
-#endif
-
-#ifdef __x86_64__
-#    define AK_ARCH_X86_64 1
-#endif
+#include <AK/Arch.h>
 
 #if defined(__APPLE__) && defined(__MACH__)
 #    define AK_OS_MACOS
@@ -42,8 +36,6 @@
 #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
 #    define AK_OS_BSD_GENERIC
 #endif
-
-#define ARCH(arch) (defined(AK_ARCH_##arch) && AK_ARCH_##arch)
 
 #ifdef ALWAYS_INLINE
 #    undef ALWAYS_INLINE
