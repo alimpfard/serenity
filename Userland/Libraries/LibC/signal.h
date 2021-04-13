@@ -29,6 +29,8 @@
 #include <signal_numbers.h>
 #include <sys/types.h>
 
+#include <sys/arch/regs.h>
+
 __BEGIN_DECLS
 
 typedef void (*__sighandler_t)(int);
@@ -60,6 +62,21 @@ struct sigaction {
     sigset_t sa_mask;
     int sa_flags;
 };
+
+typedef struct __stack {
+    void* ss_sp;
+    size_t ss_size;
+    int ss_flags;
+} stack_t;
+
+typedef PtraceRegisters mcontext_t;
+
+typedef struct ucontext {
+    struct ucontext* uc_link;
+    sigset_t uc_sigmask;
+    stack_t uc_stack;
+    mcontext_t uc_mcontext;
+} ucontext_t;
 
 int kill(pid_t, int sig);
 int killpg(int pgrp, int sig);

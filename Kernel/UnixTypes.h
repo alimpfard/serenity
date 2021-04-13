@@ -29,6 +29,9 @@
 #include <AK/DistinctNumeric.h>
 #include <AK/Types.h>
 
+// FIXME: Move a copy of this somewhere kernel-y. And in Ptrace.h
+#include <LibC/sys/arch/regs.h>
+
 #define O_RDONLY (1 << 0)
 #define O_WRONLY (1 << 1)
 #define O_RDWR (O_RDONLY | O_WRONLY)
@@ -407,6 +410,21 @@ struct sigaction {
     sigset_t sa_mask;
     int sa_flags;
 };
+
+typedef struct __stack {
+    void* ss_sp;
+    size_t ss_size;
+    int ss_flags;
+} stack_t;
+
+typedef PtraceRegisters mcontext_t;
+
+typedef struct ucontext {
+    struct ucontext* uc_link;
+    sigset_t uc_sigmask;
+    stack_t uc_stack;
+    mcontext_t uc_mcontext;
+} ucontext_t;
 
 #define SA_NOCLDSTOP 1
 #define SA_NOCLDWAIT 2
