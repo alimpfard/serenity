@@ -26,9 +26,11 @@
 
 #pragma once
 
-#include <AK/StdLibExtraDetails.h>
+#ifndef MEAN_PORTS_STEALING_GOOD_NAMES
 
-#include <AK/Assertions.h>
+#    include <AK/StdLibExtraDetails.h>
+
+#    include <AK/Assertions.h>
 
 constexpr unsigned round_up_to_power_of_two(unsigned value, unsigned power_of_two)
 {
@@ -133,3 +135,5 @@ using AK::forward;
 using AK::max;
 using AK::min;
 using AK::swap;
+
+#endif

@@ -27,6 +27,8 @@
 
 #pragma once
 
+#ifndef MEAN_PORTS_STEALING_GOOD_NAMES
+
 namespace AK::Detail {
 
 template<bool B, class T = void>
@@ -496,3 +498,5 @@ using AK::Detail::RemoveVolatile;
 using AK::Detail::TrueType;
 using AK::Detail::UnderlyingType;
 using AK::Detail::Void;
+
+#endif

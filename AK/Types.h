@@ -26,11 +26,13 @@
 
 #pragma once
 
-#include <AK/_Types.h>
+#ifndef MEAN_PORTS_STEALING_GOOD_NAMES
 
-#include <AK/IterationDecision.h>
-#include <AK/Platform.h>
-#include <AK/StdLibExtras.h>
+#    include <AK/_Types.h>
+
+#    include <AK/IterationDecision.h>
+#    include <AK/Platform.h>
+#    include <AK/StdLibExtras.h>
 
 typedef __serenity_u64 u64;
 typedef __serenity_u32 u32;
@@ -41,7 +43,7 @@ typedef __serenity_i32 i32;
 typedef __serenity_i16 i16;
 typedef __serenity_i8 i8;
 
-#ifdef __serenity__
+#    ifdef __serenity__
 
 typedef __SIZE_TYPE__ size_t;
 typedef __PTRDIFF_TYPE__ ptrdiff_t;
@@ -63,16 +65,16 @@ typedef i64 int64_t;
 
 typedef int pid_t;
 
-#else
-#    include <stddef.h>
-#    include <stdint.h>
-#    include <sys/types.h>
+#    else
+#        include <stddef.h>
+#        include <stdint.h>
+#        include <sys/types.h>
 
-#    ifdef __ptrdiff_t
+#        ifdef __ptrdiff_t
 using __ptrdiff_t = __PTRDIFF_TYPE__;
-#    endif
+#        endif
 
-#endif
+#    endif
 
 using FlatPtr = Conditional<sizeof(void*) == 8, u64, u32>;
 
@@ -120,3 +122,5 @@ enum MemoryOrder {
 };
 
 }
+
+#endif
