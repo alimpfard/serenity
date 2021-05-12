@@ -41,7 +41,7 @@ static void write_var(const String& name, const String& value)
         warnln("Failed to open: {}", f->error_string());
         exit(1);
     }
-    f->write(value);
+    f->write(value.bytes());
     if (f->error() < 0) {
         warnln("Failed to write: {}", f->error_string());
         exit(1);

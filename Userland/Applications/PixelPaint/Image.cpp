@@ -187,7 +187,7 @@ Result<void, String> Image::write_to_file(const String& file_path) const
     if (file_or_error.is_error())
         return file_or_error.error();
 
-    if (!file_or_error.value()->write(builder.string_view()))
+    if (!file_or_error.value()->write(builder.string_view().bytes()))
         return String { file_or_error.value()->error_string() };
     return {};
 }
@@ -216,7 +216,7 @@ Result<void, String> Image::export_bmp_to_file(String const& file_path)
     auto encoded_data = dumper.dump(bitmap);
 
     auto& file = *file_or_error.value();
-    if (!file.write(encoded_data.data(), encoded_data.size()))
+    if (!file.write({ encoded_data.data(), encoded_data.size() }))
         return String { "Failed to write encoded BMP data to file"sv };
 
     return {};
@@ -234,7 +234,7 @@ Result<void, String> Image::export_png_to_file(String const& file_path)
 
     auto encoded_data = Gfx::PNGWriter::encode(*bitmap);
     auto& file = *file_or_error.value();
-    if (!file.write(encoded_data.data(), encoded_data.size()))
+    if (!file.write({ encoded_data.data(), encoded_data.size() }))
         return String { "Failed to write encoded PNG data to file"sv };
 
     return {};

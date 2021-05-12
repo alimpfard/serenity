@@ -71,7 +71,7 @@ bool Heap::write_block(u32 block, ByteBuffer& buffer)
         buffer.resize(BLOCKSIZE);
         memset(buffer.offset_pointer((int)sz), 0, BLOCKSIZE - sz);
     }
-    if (m_file->write(buffer.data(), (int)buffer.size())) {
+    if (m_file->write({ buffer.data(), buffer.size() })) {
         if (block == m_end_of_file)
             m_end_of_file++;
         return true;

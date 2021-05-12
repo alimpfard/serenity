@@ -30,7 +30,7 @@ namespace WebServer {
 
 Client::Client(NonnullRefPtr<Core::TCPSocket> socket, Core::Object* parent)
     : Core::Object(parent)
-    , m_socket(socket)
+    , m_socket(move(socket))
 {
 }
 
@@ -149,7 +149,7 @@ void Client::send_response(InputStream& response, HTTP::HttpRequest const& reque
     builder.append("\r\n");
     builder.append("\r\n");
 
-    m_socket->write(builder.to_string());
+    m_socket->write(builder.string_view().bytes());
     log_response(200, request);
 
     char buffer[PAGE_SIZE];
@@ -171,7 +171,7 @@ void Client::send_redirect(StringView redirect_path, HTTP::HttpRequest const& re
     builder.append("\r\n");
     builder.append("\r\n");
 
-    m_socket->write(builder.to_string());
+    m_socket->write(builder.string_view().bytes());
 
     log_response(301, request);
 }
@@ -294,7 +294,7 @@ void Client::send_error_response(unsigned code, HTTP::HttpRequest const& request
     builder.appendff("{} ", code);
     builder.append(reason_phrase);
     builder.append("</h1></body></html>");
-    m_socket->write(builder.to_string());
+    m_socket->write(builder.string_view().bytes());
 
     log_response(code, request);
 }

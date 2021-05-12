@@ -11,8 +11,8 @@
 
 namespace Core {
 
-class Notifier : public Object {
-    C_OBJECT(Notifier)
+class AbstractNotifier : public Object {
+    C_OBJECT_ABSTRACT(AbstractNotifier)
 public:
     enum Event {
         None = 0,
@@ -21,14 +21,29 @@ public:
         Exceptional = 4,
     };
 
-    virtual ~Notifier() override;
+    ~AbstractNotifier() override = default;
 
-    void set_enabled(bool);
+    virtual void set_enabled(bool) = 0;
+    virtual void close() = 0;
 
     Function<void()> on_ready_to_read;
     Function<void()> on_ready_to_write;
 
-    void close();
+protected:
+    explicit AbstractNotifier(Object* parent)
+        : Object(parent)
+    {
+    }
+};
+
+class Notifier : public AbstractNotifier {
+    C_OBJECT(Notifier)
+public:
+    ~Notifier() override;
+
+    void set_enabled(bool) override;
+
+    void close() override;
 
     int fd() const { return m_fd; }
     unsigned event_mask() const { return m_event_mask; }

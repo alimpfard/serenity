@@ -21,8 +21,8 @@ TEST_CASE(file_readline)
     auto outfile_or_error = Core::File::open(output_path, Core::OpenMode::WriteOnly);
     auto outputfile = outfile_or_error.release_value();
     while (file->can_read_line()) {
-        outputfile->write(file->read_line());
-        outputfile->write("\n");
+        outputfile->write(file->read_line().bytes());
+        outputfile->write("\n"sv.bytes());
     }
     file->close();
     outputfile->close();

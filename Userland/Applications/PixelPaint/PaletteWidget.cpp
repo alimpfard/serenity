@@ -233,8 +233,8 @@ Result<void, String> PaletteWidget::save_palette_file(Vector<Color> palette, Str
     auto& file = *file_or_error.value();
 
     for (auto& color : palette) {
-        file.write(color.to_string_without_alpha());
-        file.write("\n");
+        file.write(color.to_string_without_alpha().bytes());
+        file.write("\n"sv.bytes());
     }
 
     file.close();

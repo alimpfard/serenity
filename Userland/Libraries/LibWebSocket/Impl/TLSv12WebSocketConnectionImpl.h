@@ -38,6 +38,7 @@ public:
     virtual void discard_connection() override;
 
 private:
+    RefPtr<Core::AbstractNotifier> m_notifier;
     RefPtr<TLS::TLSv12> m_socket;
 };
 

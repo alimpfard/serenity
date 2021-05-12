@@ -43,7 +43,7 @@ String InspectableProcess::wait_for_response()
     }
 
     u32 length {};
-    auto nread = m_socket->read((u8*)&length, sizeof(length));
+    auto nread = m_socket->read({ (u8*)&length, sizeof(length) });
     if (nread != sizeof(length)) {
         dbgln("InspectableProcess got malformed data: PID {}", m_pid);
         m_socket->close();
@@ -71,8 +71,8 @@ void InspectableProcess::send_request(JsonObject const& request)
 {
     auto serialized = request.to_string();
     auto length = serialized.length();
-    m_socket->write((u8 const*)&length, sizeof(length));
-    m_socket->write(serialized);
+    m_socket->write({ (u8 const*)&length, sizeof(length) });
+    m_socket->write(serialized.bytes());
 }
 
 }

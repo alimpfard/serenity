@@ -8,46 +8,20 @@
 #include <AK/Debug.h>
 #include <LibCore/Notifier.h>
 #include <LibCore/Socket.h>
-#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 namespace Core {
 
-Socket::Socket(Type type, Object* parent)
-    : IODevice(parent)
-    , m_type(type)
-{
-    register_property(
-        "source_address", [this] { return m_source_address.to_string(); },
-        [](auto&) { return false; });
-
-    register_property(
-        "destination_address", [this] { return m_destination_address.to_string(); },
-        [](auto&) { return false; });
-
-    register_property(
-        "source_port", [this] { return m_source_port; },
-        [](auto&) { return false; });
-
-    register_property(
-        "destination_port", [this] { return m_destination_port; },
-        [](auto&) { return false; });
-
-    register_property(
-        "connected", [this] { return m_connected; },
-        [](auto&) { return false; });
-}
-
 Socket::~Socket()
 {
-    close();
+    // Note: This call is *not* virtual.
+    FileLikeIODevice::close();
 }
 
 bool Socket::connect(const String& hostname, int port)
@@ -115,8 +89,17 @@ bool Socket::connect(const SocketAddress& address)
     return common_connect((const sockaddr*)&saddr, sizeof(saddr));
 }
 
+bool Socket::shutdown()
+{
+    if (!is_connected())
+        return true;
+    return FileLikeIODevice::close();
+}
+
 bool Socket::common_connect(const struct sockaddr* addr, socklen_t addrlen)
 {
+    VERIFY(fd() != -1);
+
     auto connected = [this] {
         dbgln_if(CSOCKET_DEBUG, "{} connected!", *this);
         if (!m_connected) {
@@ -148,28 +131,6 @@ bool Socket::common_connect(const struct sockaddr* addr, socklen_t addrlen)
     return true;
 }
 
-ByteBuffer Socket::receive(int max_size)
-{
-    auto buffer = read(max_size);
-    if (eof())
-        m_connected = false;
-    return buffer;
-}
-
-bool Socket::send(ReadonlyBytes data)
-{
-    auto remaining_bytes = data.size();
-    while (remaining_bytes > 0) {
-        ssize_t nsent = ::send(fd(), data.data() + (data.size() - remaining_bytes), remaining_bytes, 0);
-        if (nsent < 0) {
-            set_error(errno);
-            return false;
-        }
-        remaining_bytes -= nsent;
-    }
-    return true;
-}
-
 void Socket::did_update_fd(int fd)
 {
     if (fd < 0) {
@@ -191,10 +152,33 @@ void Socket::did_update_fd(int fd)
     }
 }
 
+size_t Socket::read(Bytes bytes)
+{
+    auto size = FileLikeIODevice::read(bytes);
+    return size;
+}
+
+bool Socket::discard_or_error(size_t count)
+{
+    return FileLikeIODevice::discard_or_error(count);
+}
+
+size_t Socket::write(ReadonlyBytes data)
+{
+    ssize_t nsent = ::send(fd(), data.data(), data.size(), 0);
+    if (nsent < 0) {
+        set_error(errno);
+        if (error() != EINTR && error() != EAGAIN && error() != EWOULDBLOCK)
+            m_connected = false;
+        return 0;
+    }
+    return static_cast<size_t>(nsent);
+}
+
 void Socket::ensure_read_notifier()
 {
     VERIFY(m_connected);
-    m_read_notifier = Notifier::construct(fd(), Notifier::Event::Read, this);
+    m_read_notifier = make_notifier_impl(Notifier::Event::Read);
     m_read_notifier->on_ready_to_read = [this] {
         if (!can_read())
             return;

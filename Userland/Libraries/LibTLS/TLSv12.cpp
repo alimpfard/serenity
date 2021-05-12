@@ -300,7 +300,10 @@ void TLSv12::pseudorandom_function(Bytes output, ReadonlyBytes secret, const u8*
 }
 
 TLSv12::TLSv12(Core::Object* parent, Options options)
-    : Core::Socket(Core::Socket::Type::TCP, parent)
+    : Core::IODevice(parent)
+    , Core::SocketLikeIODevice(parent)
+    , Core::FileLikeIODevice(parent)
+    , Core::Socket(parent)
 {
     m_context.options = move(options);
     m_context.is_server = false;

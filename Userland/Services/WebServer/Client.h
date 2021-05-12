@@ -30,7 +30,7 @@ private:
     void handle_directory_listing(String const& requested_path, String const& real_path, HTTP::HttpRequest const&);
     bool verify_credentials(Vector<HTTP::HttpRequest::Header> const&);
 
-    NonnullRefPtr<Core::TCPSocket> m_socket;
+    NonnullRefPtr<Core::BufferingIODevice<Core::TCPSocket>> m_socket;
 };
 
 }
