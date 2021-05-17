@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/ScopeGuard.h>
 #include <LibJS/Runtime/Array.h>
 #include <LibJS/Runtime/ArrayBuffer.h>
 #include <LibJS/Runtime/BigInt.h>
@@ -57,6 +58,11 @@ static Result<size_t, JS::Value> parse_module(JS::GlobalObject& global_object, J
     }
     InputMemoryStream stream { *bytes };
     auto module_result = Wasm::Module::parse(stream);
+    ScopeGuard drain_errors {
+        [&] {
+            stream.handle_any_error();
+        }
+    };
     if (module_result.is_error()) {
         // FIXME: Throw CompileError instead.
         auto error = JS::TypeError::create(global_object, Wasm::parse_error_to_string(module_result.error()));
@@ -192,7 +198,11 @@ JS_DEFINE_NATIVE_FUNCTION(WebAssemblyObject::instantiate)
                 },
                 [&](const auto&) {
                     // FIXME: Implement these.
+                    dbgln("Unimplemented import of non-function attempted");
+                    vm.throw_exception<JS::TypeError>(global_object, "LinkError: Not Implemented");
                 });
+            if (vm.exception())
+                break;
         }
 
         if (take_exception_and_reject_if_needed())
@@ -355,6 +365,11 @@ void WebAssemblyModuleInstanceObject::initialize(JS::GlobalObject& global_object
                 auto function = create_native_function(address, export_.name(), global_object);
                 m_exports_object->define_property(export_.name(), function);
             },
+            [&](const Wasm::MemoryAddress& address) {
+                // FIXME: Cache this.
+                auto memory = heap().allocate<WebAssemblyMemoryObject>(global_object, global_object, address);
+                m_exports_object->define_property(export_.name(), memory);
+            },
             [&](const auto&) {
                 // FIXME: Implement other exports!
             });
@@ -383,6 +398,35 @@ void WebAssemblyModuleInstanceObject::visit_edges(Cell::Visitor& visitor)
 {
     Object::visit_edges(visitor);
     visitor.visit(m_exports_object);
+}
+
+WebAssemblyMemoryObject::WebAssemblyMemoryObject(JS::GlobalObject& global_object, Wasm::MemoryAddress address)
+    : JS::Object(global_object)
+    , m_address(address)
+{
+}
+
+void WebAssemblyMemoryObject::initialize(JS::GlobalObject& global_object)
+{
+    Object::initialize(global_object);
+    // define_native_function("grow", grow, 1);
+    define_native_property("buffer", buffer, nullptr);
+}
+
+JS_DEFINE_NATIVE_GETTER(WebAssemblyMemoryObject::buffer)
+{
+    auto* this_object = vm.this_value(global_object).to_object(global_object);
+    if (!this_object || !is<WebAssemblyMemoryObject>(this_object)) {
+        vm.throw_exception<JS::TypeError>(global_object, JS::ErrorType::NotA, "Memory");
+        return {};
+    }
+    auto* memory_object = static_cast<WebAssemblyMemoryObject*>(this_object);
+    auto address = memory_object->m_address;
+    auto* memory = WebAssemblyObject::s_abstract_machine.store().get(address);
+    if (!memory)
+        return JS::js_undefined();
+
+    return JS::ArrayBuffer::create(global_object, &memory->data());
 }
 
 }

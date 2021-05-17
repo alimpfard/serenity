@@ -78,4 +78,21 @@ private:
     JS::Object* m_exports_object { nullptr };
 };
 
+class WebAssemblyMemoryObject final : public JS::Object {
+    JS_OBJECT(WebAssemblyModuleObject, JS::Object);
+
+public:
+    explicit WebAssemblyMemoryObject(JS::GlobalObject&, Wasm::MemoryAddress);
+    virtual void initialize(JS::GlobalObject&) override;
+    virtual ~WebAssemblyMemoryObject() override = default;
+
+    auto address() const { return m_address; }
+
+private:
+    // JS_DECLARE_NATIVE_FUNCTION(grow);
+    JS_DECLARE_NATIVE_GETTER(buffer);
+
+    Wasm::MemoryAddress m_address;
+};
+
 }
