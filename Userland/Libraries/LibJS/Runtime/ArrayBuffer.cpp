@@ -19,6 +19,11 @@ ArrayBuffer* ArrayBuffer::create(GlobalObject& global_object, ByteBuffer& buffer
     return global_object.heap().allocate<ArrayBuffer>(global_object, buffer, *global_object.array_buffer_prototype());
 }
 
+ArrayBuffer* ArrayBuffer::create(GlobalObject& global_object, ByteBuffer* buffer)
+{
+    return global_object.heap().allocate<ArrayBuffer>(global_object, buffer, *global_object.array_buffer_prototype());
+}
+
 ArrayBuffer::ArrayBuffer(size_t byte_size, Object& prototype)
     : Object(prototype)
     , m_buffer(ByteBuffer::create_zeroed(byte_size))
@@ -27,7 +32,13 @@ ArrayBuffer::ArrayBuffer(size_t byte_size, Object& prototype)
 
 ArrayBuffer::ArrayBuffer(ByteBuffer& buffer, Object& prototype)
     : Object(prototype)
-    , m_buffer(buffer)
+    , m_buffer(ByteBuffer { buffer })
+{
+}
+
+ArrayBuffer::ArrayBuffer(ByteBuffer* buffer, Object& prototype)
+    : Object(prototype)
+    , m_buffer(static_cast<ByteBuffer*>(buffer))
 {
 }
 
