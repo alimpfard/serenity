@@ -13,6 +13,9 @@
 
 namespace Web::Fetch {
 
+bool is_forbidden_method(const String& method);
+String normalize_method(const String& method);
+
 class LoadRequest {
 public:
     LoadRequest()
