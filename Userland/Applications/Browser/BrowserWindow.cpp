@@ -28,9 +28,9 @@
 #include <LibGUI/Widget.h>
 #include <LibJS/Interpreter.h>
 #include <LibWeb/Dump.h>
+#include <LibWeb/Fetch/ResourceLoader.h>
 #include <LibWeb/InProcessWebView.h>
 #include <LibWeb/Layout/InitialContainingBlockBox.h>
-#include <LibWeb/Loader/ResourceLoader.h>
 #include <LibWeb/OutOfProcessWebView.h>
 
 namespace Browser {

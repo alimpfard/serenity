@@ -11,8 +11,8 @@
 #include <LibWeb/CSS/StyleSheet.h>
 #include <LibWeb/DOM/Document.h>
 #include <LibWeb/DOM/Element.h>
-#include <LibWeb/Loader/CSSLoader.h>
-#include <LibWeb/Loader/ResourceLoader.h>
+#include <LibWeb/Fetch/CSSLoader.h>
+#include <LibWeb/Fetch/ResourceLoader.h>
 
 namespace Web {
 

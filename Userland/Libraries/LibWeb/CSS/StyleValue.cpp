@@ -8,6 +8,8 @@
 #include <LibGfx/Palette.h>
 #include <LibWeb/CSS/StyleValue.h>
 #include <LibWeb/DOM/Document.h>
+#include <LibWeb/Fetch/LoadRequest.h>
+#include <LibWeb/Fetch/ResourceLoader.h>
 #include <LibWeb/InProcessWebView.h>
 #include <LibWeb/Loader/LoadRequest.h>
 #include <LibWeb/Loader/ResourceLoader.h>

@@ -19,9 +19,9 @@
 #include <LibGUI/BoxLayout.h>
 #include <LibGUI/Icon.h>
 #include <LibGUI/TabWidget.h>
+#include <LibWeb/Fetch/ContentFilter.h>
+#include <LibWeb/Fetch/ResourceLoader.h>
 #include <LibWeb/HTML/WebSocket.h>
-#include <LibWeb/Loader/ContentFilter.h>
-#include <LibWeb/Loader/ResourceLoader.h>
 #include <stdio.h>
 #include <unistd.h>
 

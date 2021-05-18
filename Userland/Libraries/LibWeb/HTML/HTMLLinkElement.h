@@ -7,8 +7,8 @@
 
 #pragma once
 
+#include <LibWeb/Fetch/CSSLoader.h>
 #include <LibWeb/HTML/HTMLElement.h>
-#include <LibWeb/Loader/CSSLoader.h>
 
 namespace Web::HTML {
 

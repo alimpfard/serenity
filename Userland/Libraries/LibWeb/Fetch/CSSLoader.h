@@ -8,7 +8,7 @@
 
 #include <AK/Function.h>
 #include <LibWeb/CSS/CSSStyleSheet.h>
-#include <LibWeb/Loader/Resource.h>
+#include <LibWeb/Fetch/Resource.h>
 
 namespace Web {
 

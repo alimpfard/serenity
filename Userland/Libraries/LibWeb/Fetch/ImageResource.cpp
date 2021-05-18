@@ -7,7 +7,7 @@
 #include <AK/Function.h>
 #include <LibGfx/Bitmap.h>
 #include <LibImageDecoderClient/Client.h>
-#include <LibWeb/Loader/ImageResource.h>
+#include <LibWeb/Fetch/ImageResource.h>
 
 namespace Web {
 

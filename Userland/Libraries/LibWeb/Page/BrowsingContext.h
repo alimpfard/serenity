@@ -15,7 +15,7 @@
 #include <LibGfx/Rect.h>
 #include <LibGfx/Size.h>
 #include <LibWeb/DOM/Position.h>
-#include <LibWeb/Loader/FrameLoader.h>
+#include <LibWeb/Fetch/FrameLoader.h>
 #include <LibWeb/Page/EventHandler.h>
 #include <LibWeb/TreeNode.h>
 

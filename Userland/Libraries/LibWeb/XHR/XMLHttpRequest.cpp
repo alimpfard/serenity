@@ -15,8 +15,8 @@
 #include <LibWeb/DOM/EventListener.h>
 #include <LibWeb/DOM/ExceptionOr.h>
 #include <LibWeb/DOM/Window.h>
+#include <LibWeb/Fetch/ResourceLoader.h>
 #include <LibWeb/HTML/EventNames.h>
-#include <LibWeb/Loader/ResourceLoader.h>
 #include <LibWeb/Origin.h>
 #include <LibWeb/XHR/EventNames.h>
 #include <LibWeb/XHR/ProgressEvent.h>
