@@ -13,9 +13,9 @@
 #include <AK/Variant.h>
 #include <LibHTTP/HeaderList.h>
 #include <LibWeb/Forward.h>
+#include <LibWeb/HTML/PolicyContainer.h>
 #include <LibWeb/Origin.h>
 #include <LibWeb/ReferrerPolicy/ReferrerPolicy.h>
-#include <LibWeb/HTML/PolicyContainer.h>
 
 namespace Web::Fetch {
 
@@ -220,7 +220,7 @@ public:
 
 private:
     String m_method { "GET" }; // FIXME: This should be a byte sequence.
-    URL m_url; // FIXME: This should point to the first URL in the URL list.
+    URL m_url;                 // FIXME: This should point to the first URL in the URL list.
     bool m_local_urls_only { false };
     HTTP::HeaderList m_headers;
     bool m_unsafe_request { false };
@@ -250,7 +250,7 @@ private:
     bool m_history_navigation { false };
     bool m_user_activation { false };
     bool m_tainted_origin { false };
-    Vector<URL> m_url_list; // FIXME: Put in m_url as the first entry
+    Vector<URL> m_url_list;    // FIXME: Put in m_url as the first entry
     u8 m_redirect_count { 0 }; // NOTE: This is a u8 as the current max redirect count is 20, thus we can save a little bit of space.
     ResponseTainting m_response_tainting { ResponseTainting::Basic };
     bool m_prevent_no_cache_cache_control_header_modification { false };

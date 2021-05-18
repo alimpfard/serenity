@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <LibHTTP/Header.h>
 #include <LibJS/Runtime/Function.h>
 #include <LibWeb/Bindings/EventWrapper.h>
 #include <LibWeb/Bindings/XMLHttpRequestWrapper.h>
@@ -21,7 +22,6 @@
 #include <LibWeb/XHR/EventNames.h>
 #include <LibWeb/XHR/ProgressEvent.h>
 #include <LibWeb/XHR/XMLHttpRequest.h>
-#include <LibHTTP/Header.h>
 
 namespace Web::XHR {
 

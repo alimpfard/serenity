@@ -158,7 +158,7 @@ ImageStyleValue::ImageStyleValue(const URL& url, DOM::Document& document)
     , m_document(document)
 {
     auto request = Fetch::LoadRequest::create_for_url_on_page(url, document.page());
-    set_resource(Fetch::ResourceLoader::the().load_resource(Fetch::Resource::Type::Image, request));
+    set_resource(Fetch::ResourceLoader::the().load_resource(Fetch::Response::Type::Image, request));
 }
 
 void ImageStyleValue::resource_did_load()

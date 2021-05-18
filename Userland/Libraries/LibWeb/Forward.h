@@ -179,7 +179,7 @@ class TextNode;
 namespace Web::Fetch {
 class FrameLoader;
 class LoadRequest;
-class Resource;
+class Response;
 class ResourceLoader;
 }
 
