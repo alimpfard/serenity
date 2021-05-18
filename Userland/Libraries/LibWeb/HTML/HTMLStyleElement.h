@@ -23,7 +23,7 @@ public:
     virtual void removed_from(Node*) override;
 
 private:
-    CSSLoader m_css_loader;
+    Fetch::CSSLoader m_css_loader;
 };
 
 }

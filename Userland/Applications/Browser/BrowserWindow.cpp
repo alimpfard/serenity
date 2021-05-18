@@ -408,7 +408,7 @@ void BrowserWindow::build_menus()
     debug_menu.add_action(GUI::Action::create("Clear &Cache", { Mod_Ctrl | Mod_Shift, Key_C }, [this](auto&) {
         auto& tab = active_tab();
         if (tab.m_type == Tab::Type::InProcessWebView) {
-            Web::ResourceLoader::the().clear_cache();
+            Web::Fetch::ResourceLoader::the().clear_cache();
         } else {
             tab.m_web_content_view->debug_request("clear-cache");
         }
@@ -419,12 +419,12 @@ void BrowserWindow::build_menus()
     m_disable_user_agent_spoofing = GUI::Action::create_checkable("Disabled", [this](auto&) {
         auto& tab = active_tab();
         if (tab.m_type == Tab::Type::InProcessWebView) {
-            Web::ResourceLoader::the().set_user_agent(Web::default_user_agent);
+            Web::Fetch::ResourceLoader::the().set_user_agent(Web::Fetch::default_user_agent);
         } else {
-            tab.m_web_content_view->debug_request("spoof-user-agent", Web::default_user_agent);
+            tab.m_web_content_view->debug_request("spoof-user-agent", Web::Fetch::default_user_agent);
         }
     });
-    m_disable_user_agent_spoofing->set_status_tip(Web::default_user_agent);
+    m_disable_user_agent_spoofing->set_status_tip(Web::Fetch::default_user_agent);
     spoof_user_agent_menu.add_action(*m_disable_user_agent_spoofing);
     m_user_agent_spoof_actions.add_action(*m_disable_user_agent_spoofing);
     m_disable_user_agent_spoofing->set_checked(true);
@@ -433,7 +433,7 @@ void BrowserWindow::build_menus()
         auto action = GUI::Action::create_checkable(name, [this, user_agent](auto&) {
             auto& tab = active_tab();
             if (tab.m_type == Tab::Type::InProcessWebView) {
-                Web::ResourceLoader::the().set_user_agent(user_agent);
+                Web::Fetch::ResourceLoader::the().set_user_agent(user_agent);
             } else {
                 tab.m_web_content_view->debug_request("spoof-user-agent", user_agent);
             }
@@ -457,7 +457,7 @@ void BrowserWindow::build_menus()
             return;
         }
         if (tab.m_type == Tab::Type::InProcessWebView) {
-            Web::ResourceLoader::the().set_user_agent(user_agent);
+            Web::Fetch::ResourceLoader::the().set_user_agent(user_agent);
         } else {
             tab.m_web_content_view->debug_request("spoof-user-agent", user_agent);
         }

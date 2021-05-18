@@ -204,11 +204,11 @@ void HTMLScriptElement::prepare_script()
         }
 
         if (m_script_type == ScriptType::Classic) {
-            auto request = LoadRequest::create_for_url_on_page(url, document().page());
+            auto request = Fetch::LoadRequest::create_for_url_on_page(url, document().page());
 
             // FIXME: This load should be made asynchronous and the parser should spin an event loop etc.
             m_script_filename = url.to_string();
-            ResourceLoader::the().load_sync(
+            Fetch::ResourceLoader::the().load_sync(
                 request,
                 [this, url](auto data, auto&, auto) {
                     if (data.is_null()) {

@@ -9,7 +9,7 @@
 #include <LibImageDecoderClient/Client.h>
 #include <LibWeb/Fetch/ImageResource.h>
 
-namespace Web {
+namespace Web::Fetch {
 
 ImageResource::ImageResource(const LoadRequest& request)
     : Resource(Type::Image, request)

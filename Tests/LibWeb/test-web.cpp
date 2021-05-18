@@ -96,10 +96,10 @@ TESTJS_GLOBAL_FUNCTION(wait_for_page_to_load, waitForPageToLoad)
         entry(document->interpreter().global_object());
 
     // Set the load hook
-    Web::LoadRequest request;
+    Web::Fetch::LoadRequest request;
     request.set_url(next_page_to_load.value());
 
-    auto& loader = Web::ResourceLoader::the();
+    auto& loader = Web::Fetch::ResourceLoader::the();
     loader.load_sync(
         request,
         [&](auto data, auto&, auto) {

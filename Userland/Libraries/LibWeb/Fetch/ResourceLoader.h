@@ -15,7 +15,7 @@ namespace Protocol {
 class RequestClient;
 }
 
-namespace Web {
+namespace Web::Fetch {
 
 constexpr auto default_user_agent = "Mozilla/4.0 (SerenityOS; x86) LibWeb+LibJS (Not KHTML, nor Gecko) LibWeb";
 

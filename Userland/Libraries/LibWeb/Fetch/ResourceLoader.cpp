@@ -16,7 +16,7 @@
 #include <LibWeb/Fetch/Resource.h>
 #include <LibWeb/Fetch/ResourceLoader.h>
 
-namespace Web {
+namespace Web::Fetch {
 
 ResourceLoader& ResourceLoader::the()
 {

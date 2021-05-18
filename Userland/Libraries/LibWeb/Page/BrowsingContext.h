@@ -55,8 +55,8 @@ public:
     Gfx::IntRect viewport_rect() const { return { m_viewport_scroll_offset, m_size }; }
     void set_viewport_rect(const Gfx::IntRect&);
 
-    FrameLoader& loader() { return m_loader; }
-    const FrameLoader& loader() const { return m_loader; }
+    Fetch::FrameLoader& loader() { return m_loader; }
+    const Fetch::FrameLoader& loader() const { return m_loader; }
 
     EventHandler& event_handler() { return m_event_handler; }
     const EventHandler& event_handler() const { return m_event_handler; }
@@ -100,7 +100,7 @@ private:
     WeakPtr<Page> m_page;
     BrowsingContext& m_top_level_browsing_context;
 
-    FrameLoader m_loader;
+    Fetch::FrameLoader m_loader;
     EventHandler m_event_handler;
 
     WeakPtr<DOM::Element> m_host_element;

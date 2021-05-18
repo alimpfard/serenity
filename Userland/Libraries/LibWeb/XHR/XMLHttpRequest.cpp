@@ -182,7 +182,7 @@ DOM::ExceptionOr<void> XMLHttpRequest::send()
         return {};
     }
 
-    auto request = LoadRequest::create_for_url_on_page(request_url, m_window->document().page());
+    auto request = Fetch::LoadRequest::create_for_url_on_page(request_url, m_window->document().page());
     request.set_method(m_method);
     for (auto& it : m_request_headers)
         request.set_header(it.key, it.value);
@@ -206,7 +206,7 @@ DOM::ExceptionOr<void> XMLHttpRequest::send()
 
         // FIXME: in order to properly set ReadyState::HeadersReceived and ReadyState::Loading,
         // we need to make ResourceLoader give us more detailed updates than just "done" and "error".
-        ResourceLoader::the().load(
+        Fetch::ResourceLoader::the().load(
             request,
             [weak_this = make_weak_ptr()](auto data, auto& response_headers, auto status_code) {
                 if (!weak_this)

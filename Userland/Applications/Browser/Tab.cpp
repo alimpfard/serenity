@@ -383,12 +383,12 @@ void Tab::update_bookmark_button(const String& url)
 void Tab::did_become_active()
 {
     if (m_type == Type::InProcessWebView) {
-        Web::ResourceLoader::the().on_load_counter_change = [this] {
-            if (Web::ResourceLoader::the().pending_loads() == 0) {
+        Web::Fetch::ResourceLoader::the().on_load_counter_change = [this] {
+            if (Web::Fetch::ResourceLoader::the().pending_loads() == 0) {
                 m_statusbar->set_text("");
                 return;
             }
-            m_statusbar->set_text(String::formatted("Loading ({} pending resources...)", Web::ResourceLoader::the().pending_loads()));
+            m_statusbar->set_text(String::formatted("Loading ({} pending resources...)", Web::Fetch::ResourceLoader::the().pending_loads()));
         };
     }
 

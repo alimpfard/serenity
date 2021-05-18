@@ -429,7 +429,7 @@ private:
 
 class ImageStyleValue final
     : public StyleValue
-    , public ImageResourceClient {
+    , public Fetch::ImageResourceClient {
 public:
     static NonnullRefPtr<ImageStyleValue> create(const URL& url, DOM::Document& document) { return adopt_ref(*new ImageStyleValue(url, document)); }
     virtual ~ImageStyleValue() override { }

@@ -35,7 +35,7 @@ private:
 
     virtual RefPtr<Layout::Node> create_layout_node() override;
 
-    ImageLoader m_image_loader;
+    Fetch::ImageLoader m_image_loader;
 };
 
 }

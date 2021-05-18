@@ -35,7 +35,7 @@ private:
         };
     };
 
-    CSSLoader m_css_loader;
+    Fetch::CSSLoader m_css_loader;
     unsigned m_relationship { 0 };
 };
 

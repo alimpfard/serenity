@@ -21,7 +21,7 @@
 #include <LibWeb/Page/BrowsingContext.h>
 #include <LibWeb/Page/Page.h>
 
-namespace Web {
+namespace Web::Fetch {
 
 FrameLoader::FrameLoader(BrowsingContext& browsing_context)
     : m_browsing_context(browsing_context)

@@ -37,7 +37,7 @@ void Page::load(const URL& url)
     top_level_browsing_context().loader().load(url, FrameLoader::Type::Navigation);
 }
 
-void Page::load(const LoadRequest& request)
+void Page::load(const Fetch::LoadRequest& request)
 {
     top_level_browsing_context().loader().load(request, FrameLoader::Type::Navigation);
 }

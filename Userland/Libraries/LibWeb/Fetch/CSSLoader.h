@@ -10,7 +10,7 @@
 #include <LibWeb/CSS/CSSStyleSheet.h>
 #include <LibWeb/Fetch/Resource.h>
 
-namespace Web {
+namespace Web::Fetch {
 
 class CSSLoader : public ResourceClient {
 public:

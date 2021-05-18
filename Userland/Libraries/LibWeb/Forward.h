@@ -176,20 +176,24 @@ class ReplacedBox;
 class TextNode;
 }
 
+namespace Web::Fetch {
+class FrameLoader;
+class LoadRequest;
+class Resource;
+class ResourceLoader;
+}
+
 namespace Web {
 class EventHandler;
 class EditEventHandler;
 class BrowsingContext;
 class FrameLoader;
 class InProcessWebView;
-class LoadRequest;
 class Origin;
 class OutOfProcessWebView;
 class Page;
 class PageClient;
 class PaintContext;
-class Resource;
-class ResourceLoader;
 class StackingContext;
 }
 

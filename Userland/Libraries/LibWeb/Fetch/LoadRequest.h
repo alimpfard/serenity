@@ -11,7 +11,7 @@
 #include <AK/URL.h>
 #include <LibWeb/Forward.h>
 
-namespace Web {
+namespace Web::Fetch {
 
 class LoadRequest {
 public:
@@ -69,8 +69,8 @@ private:
 namespace AK {
 
 template<>
-struct Traits<Web::LoadRequest> : public GenericTraits<Web::LoadRequest> {
-    static unsigned hash(const Web::LoadRequest& request) { return request.hash(); }
+struct Traits<Web::Fetch::LoadRequest> : public GenericTraits<Web::Fetch::LoadRequest> {
+    static unsigned hash(const Web::Fetch::LoadRequest& request) { return request.hash(); }
 };
 
 }

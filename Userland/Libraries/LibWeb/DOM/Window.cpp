@@ -142,7 +142,7 @@ void Window::did_set_location_href(Badge<Bindings::LocationObject>, const URL& n
     auto* frame = document().browsing_context();
     if (!frame)
         return;
-    frame->loader().load(new_href, FrameLoader::Type::Navigation);
+    frame->loader().load(new_href, Fetch::FrameLoader::Type::Navigation);
 }
 
 void Window::did_call_location_reload(Badge<Bindings::LocationObject>)
@@ -150,7 +150,7 @@ void Window::did_call_location_reload(Badge<Bindings::LocationObject>)
     auto* frame = document().browsing_context();
     if (!frame)
         return;
-    frame->loader().load(document().url(), FrameLoader::Type::Reload);
+    frame->loader().load(document().url(), Fetch::FrameLoader::Type::Reload);
 }
 
 bool Window::dispatch_event(NonnullRefPtr<Event> event)
