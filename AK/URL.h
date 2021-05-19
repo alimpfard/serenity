@@ -103,6 +103,17 @@ public:
 
     bool operator==(URL const& other) const { return equals(other, ExcludeFragment::No); }
 
+    // https://fetch.spec.whatwg.org/#is-local
+    bool is_local() const
+    {
+        return m_protocol.is_one_of("about", "blob", "data");
+    }
+
+    bool is_http_or_https() const
+    {
+        return m_protocol.is_one_of("http", "https");
+    }
+
 private:
     URL(String&& data_mime_type, String&& data_payload, bool payload_is_base64)
         : m_valid(true)
