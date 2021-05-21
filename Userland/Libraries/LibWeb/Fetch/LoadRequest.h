@@ -12,6 +12,7 @@
 #include <AK/Tuple.h>
 #include <AK/URL.h>
 #include <AK/Variant.h>
+#include <AK/WeakPtr.h>
 #include <LibHTTP/HeaderList.h>
 #include <LibWeb/Forward.h>
 #include <LibWeb/HTML/PolicyContainer.h>
@@ -141,9 +142,10 @@ public:
 
     using AuthenticationEntry = Tuple<String, String, String>; // Tuple of username, password and realm.
 
-    LoadRequest(const URL& url)
+    LoadRequest(const URL& url, Page* page)
     {
         m_url_list.append(url);
+        m_client = page;
     }
 
     static LoadRequest create_for_url_on_page(const URL& url, Page* page);
@@ -236,6 +238,7 @@ public:
     void set_response_tainting(Badge<ResourceLoader>, ResponseTainting response_tainting) { m_response_tainting = response_tainting; }
 
     const Variant<OriginEnum, Origin>& origin() const { return m_origin; }
+    void set_origin(const Origin& origin) { m_origin = Origin(origin); }
 
     Mode mode() const { return m_mode; }
 
@@ -283,13 +286,15 @@ public:
     bool done() const { return m_done; }
     void set_done(Badge<ResourceLoader>, bool done) { m_done = done; }
 
+    WeakPtr<Page> client() const { return m_client; }
+
 private:
     String m_method { "GET" }; // FIXME: This should be a byte sequence.
     bool m_local_urls_only { false };
     HTTP::HeaderList m_headers;
     bool m_unsafe_request { false };
     ByteBuffer m_body; // FIXME: Or a body object
-    // FIXME: A request has an associated client (null or an environment settings object).
+    WeakPtr<Page> m_client; // FIXME: this should be an environment settings object
     // FIXME: A request has an associated reserved client (null, an environment, or an environment settings object). Unless stated otherwise it is null.
     String m_replaces_client_id;
     Window m_window { Window::Client }; // FIXME: or an environment settings object whose global object is a Window object

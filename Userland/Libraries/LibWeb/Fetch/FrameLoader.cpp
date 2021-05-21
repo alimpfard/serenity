@@ -282,7 +282,8 @@ void FrameLoader::resource_did_load()
 
     if (mime_type.has_value())
         document->set_content_type(mime_type.value().essence());
-    document->set_content_type("text/html");
+    else
+        document->set_content_type("text/html");
 
     browsing_context().set_document(document);
 
