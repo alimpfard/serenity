@@ -19,6 +19,7 @@ class RequestClient;
 namespace Web::Fetch {
 
 constexpr auto default_user_agent = "Mozilla/4.0 (SerenityOS; x86) LibWeb+LibJS (Not KHTML, nor Gecko) LibWeb";
+constexpr u8 maximum_redirects_allowed = 20; // "If request’s redirect count is twenty, return a network error." https://fetch.spec.whatwg.org/#concept-http-redirect-fetch
 
 class ResourceLoader : public Core::Object {
     C_OBJECT(ResourceLoader)
@@ -54,8 +55,10 @@ private:
     RefPtr<Response> http_network_or_cache_fetch(const FetchParams&, bool is_authentication_fetch = false, bool is_new_connection_fetch = false);
     RefPtr<Response> http_network_fetch(const FetchParams&, bool include_credentials = false, bool force_new_connection = false);
     RefPtr<Response> http_redirect_fetch(const FetchParams&, RefPtr<Response>);
+    void fetch_finale(const FetchParams&, NonnullRefPtr<Response>);
+    void finalize_response(const FetchParams&, RefPtr<Response>);
     [[nodiscard]] bool cors_check(const LoadRequest&, RefPtr<Response>);
-    [[nodiscard]] bool tao_check(const LoadRequest&, RefPtr<Response>)
+    [[nodiscard]] bool tao_check(const LoadRequest&, RefPtr<Response>);
 
         int m_pending_loads { 0 };
 

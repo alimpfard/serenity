@@ -114,6 +114,9 @@ public:
         return m_protocol.is_one_of("http", "https");
     }
 
+    // https://url.spec.whatwg.org/#include-credentials
+    bool include_credentials() const { return !m_username.is_empty() && !m_password.is_empty(); }
+
 private:
     URL(String&& data_mime_type, String&& data_payload, bool payload_is_base64)
         : m_valid(true)
@@ -148,6 +151,8 @@ private:
     bool m_data_payload_is_base64 { false };
     String m_data_mime_type;
     String m_data_payload;
+    String m_username;
+    String m_password;
 };
 
 template<>

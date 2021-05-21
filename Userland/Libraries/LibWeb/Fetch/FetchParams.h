@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#pragma once
+
+#include <AK/Result.h>
 #include <AK/Function.h>
 #include <AK/Result.h>
 #include <LibWeb/Fetch/LoadRequest.h>
@@ -62,7 +65,7 @@ struct FetchParams {
 
     // FIXME: task destination (default null) - Null, a global object, or a parallel queue.
 
-    bool m_cross_origin_isolated_capability { false };
+    bool cross_origin_isolated_capability { false };
 
     FetchTimingInfo timing_info;
 };
