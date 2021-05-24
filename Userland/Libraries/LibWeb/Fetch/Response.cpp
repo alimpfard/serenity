@@ -15,9 +15,13 @@ namespace Web::Fetch {
 
 NonnullRefPtr<Response> Response::create(Badge<ResourceLoader>, Type type)
 {
+    RefPtr<Response> response;
     if (type == Type::Image)
-        return adopt_ref(*new ImageResource());
-    return adopt_ref(*new Response());
+        response = adopt_ref(*new ImageResource());
+    else
+        response = adopt_ref(*new Response());
+    response->m_type = type;
+    return response.release_nonnull();
 }
 
 NonnullRefPtr<Response> Response::create_network_error(Badge<ResourceLoader>)
@@ -34,6 +38,7 @@ Response::Response()
 
 Response::~Response()
 {
+    dbgln("Response destroyed");
 }
 
 void Response::for_each_client(Function<void(ResourceClient&)> callback)
@@ -50,7 +55,7 @@ void Response::for_each_client(Function<void(ResourceClient&)> callback)
 
 void Response::did_load(Badge<ResourceLoader>, ReadonlyBytes data, const HashMap<String, String, CaseInsensitiveStringTraits>& headers, Optional<u32> status_code)
 {
-    m_body = data;
+    m_body = ByteBuffer::copy(data);
     for (auto& header : headers)
         m_header_list.append(header.key, header.value);
     if (!status_code.has_value())

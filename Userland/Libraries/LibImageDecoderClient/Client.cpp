@@ -26,6 +26,8 @@ void Client::dummy()
 
 Optional<DecodedImage> Client::decode_image(const ByteBuffer& encoded_data)
 {
+    dbgln("encoding_data length={}", encoded_data.size());
+
     if (encoded_data.is_empty())
         return {};
 
