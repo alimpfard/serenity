@@ -86,7 +86,7 @@ void CSSLoader::load_next_import_if_needed()
     m_style_sheet->for_first_not_loaded_import_rule([&](auto& rule) {
         dbgln_if(CSS_LOADER_DEBUG, "CSSLoader: Loading @import {}", rule.url());
 
-        LoadRequest request(rule.url(), m_owner_element.document().page());
+        auto request = LoadRequest::create_for_url_on_page(rule.url(), m_owner_element.document().page());
         set_resource(ResourceLoader::the().load_resource(Response::Type::Generic, request));
     });
 }

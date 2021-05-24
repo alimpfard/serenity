@@ -108,7 +108,7 @@ void HTMLFormElement::submit_form(RefPtr<HTMLElement> submitter, bool from_submi
         url.set_query(urlencode(parameters, URL::PercentEncodeSet::ApplicationXWWWFormUrlencoded));
     }
 
-    Fetch::LoadRequest request(url, document().page());
+    auto request = Fetch::LoadRequest::create_for_url_on_page(url, document().page());
 
     if (effective_method == "post") {
         auto body = urlencode(parameters, URL::PercentEncodeSet::ApplicationXWWWFormUrlencoded).to_byte_buffer();

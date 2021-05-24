@@ -151,9 +151,9 @@ DOM::ExceptionOr<void> XMLHttpRequest::send()
     }
 
     auto request = Fetch::LoadRequest::create_for_url_on_page(request_url, m_window->document().page());
-    request.set_method(m_method);
+    request->set_method(m_method);
     for (auto& it : m_request_headers)
-        request.set_header(it.key, it.value);
+        request->set_header(it.key, it.value);
 
     m_upload_complete = false;
     m_timed_out = false;
