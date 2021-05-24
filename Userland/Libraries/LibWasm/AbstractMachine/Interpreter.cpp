@@ -121,10 +121,10 @@ void BytecodeInterpreter::call_address(Configuration& configuration, FunctionAdd
     instance->visit([&](const auto& function) { type = &function.type(); });
     TRAP_IF_NOT(type);
     Vector<Value> args;
-    args.ensure_capacity(type->parameters().size());
-    for (size_t i = 0; i < type->parameters().size(); ++i) {
-        args.prepend(move(configuration.stack().pop().get<Value>()));
-    }
+    args.resize(type->parameters().size());
+
+    for (size_t i = 0; i < type->parameters().size(); ++i)
+        args[i] = move(configuration.stack().pop().get<Value>());
 
     Result result { Trap {} };
     {
@@ -136,6 +136,7 @@ void BytecodeInterpreter::call_address(Configuration& configuration, FunctionAdd
         m_do_trap = true;
         return;
     }
+
     for (auto& entry : result.values())
         configuration.stack().push(Value(move(entry)));
 }
@@ -143,20 +144,20 @@ void BytecodeInterpreter::call_address(Configuration& configuration, FunctionAdd
 #define BINARY_NUMERIC_OPERATION(type, operator, cast, ...)                                       \
     do {                                                                                          \
         auto rhs = configuration.stack().pop().get<Value>().to<type>();                           \
-        auto lhs = configuration.stack().pop().get<Value>().to<type>();                           \
+        auto lhs = configuration.stack().peek().get<Value>().to<type>();                          \
         TRAP_IF_NOT(lhs.has_value());                                                             \
         TRAP_IF_NOT(rhs.has_value());                                                             \
         __VA_ARGS__;                                                                              \
         auto result = lhs.value() operator rhs.value();                                           \
         dbgln_if(WASM_TRACE_DEBUG, "{} {} {} = {}", lhs.value(), #operator, rhs.value(), result); \
-        configuration.stack().push(Value(cast(result)));                                          \
+        configuration.stack().peek() = Value(cast(result));                                       \
         return;                                                                                   \
     } while (false)
 
 #define OVF_CHECKED_BINARY_NUMERIC_OPERATION(type, operator, cast, ...)                            \
     do {                                                                                           \
         auto rhs = configuration.stack().pop().get<Value>().to<type>();                            \
-        auto ulhs = configuration.stack().pop().get<Value>().to<type>();                           \
+        auto ulhs = configuration.stack().peek().get<Value>().to<type>();                          \
         TRAP_IF_NOT(ulhs.has_value());                                                             \
         TRAP_IF_NOT(rhs.has_value());                                                              \
         dbgln_if(WASM_TRACE_DEBUG, "{} {} {} = ??", ulhs.value(), #operator, rhs.value());         \
@@ -166,29 +167,29 @@ void BytecodeInterpreter::call_address(Configuration& configuration, FunctionAdd
         TRAP_IF_NOT(!lhs.has_overflow());                                                          \
         auto result = lhs.value();                                                                 \
         dbgln_if(WASM_TRACE_DEBUG, "{} {} {} = {}", ulhs.value(), #operator, rhs.value(), result); \
-        configuration.stack().push(Value(cast(result)));                                           \
+        configuration.stack().peek() = Value(cast(result));                                        \
         return;                                                                                    \
     } while (false)
 
 #define BINARY_PREFIX_NUMERIC_OPERATION(type, operation, cast, ...)                                 \
     do {                                                                                            \
         auto rhs = configuration.stack().pop().get<Value>().to<type>();                             \
-        auto lhs = configuration.stack().pop().get<Value>().to<type>();                             \
+        auto lhs = configuration.stack().peek().get<Value>().to<type>();                            \
         TRAP_IF_NOT(lhs.has_value());                                                               \
         TRAP_IF_NOT(rhs.has_value());                                                               \
         auto result = operation(lhs.value(), rhs.value());                                          \
         dbgln_if(WASM_TRACE_DEBUG, "{}({} {}) = {}", #operation, lhs.value(), rhs.value(), result); \
-        configuration.stack().push(Value(cast(result)));                                            \
+        configuration.stack().peek() = Value(cast(result));                                         \
         return;                                                                                     \
     } while (false)
 
 #define UNARY_MAP(pop_type, operation, ...)                                               \
     do {                                                                                  \
-        auto value = configuration.stack().pop().get<Value>().to<pop_type>();             \
+        auto value = configuration.stack().peek().get<Value>().to<pop_type>();            \
         TRAP_IF_NOT(value.has_value());                                                   \
         auto result = operation(value.value());                                           \
         dbgln_if(WASM_TRACE_DEBUG, "map({}) {} = {}", #operation, value.value(), result); \
-        configuration.stack().push(Value(__VA_ARGS__(result)));                           \
+        configuration.stack().peek() = Value(__VA_ARGS__(result));                        \
         return;                                                                           \
     } while (false)
 
@@ -329,10 +330,12 @@ MakeUnsigned<T> BytecodeInterpreter::checked_unsigned_truncate(V value)
 Vector<Value> BytecodeInterpreter::pop_values(Configuration& configuration, size_t count)
 {
     Vector<Value> results;
+    results.resize(count);
+
     for (size_t i = 0; i < count; ++i) {
         auto top_of_stack = configuration.stack().pop();
         if (auto value = top_of_stack.get_pointer<Value>())
-            results.prepend(move(*value));
+            results[i] = move(*value);
         else
             TRAP_IF_NOT_NORETURN(value);
     }
@@ -433,10 +436,11 @@ void BytecodeInterpreter::interpret(Configuration& configuration, InstructionPoi
     case Instructions::return_.value(): {
         Vector<Stack::EntryType> results;
         auto& frame = configuration.frame();
-        results.ensure_capacity(frame.arity());
+        results.resize(frame.arity());
         for (size_t i = 0; i < frame.arity(); ++i)
-            results.prepend(configuration.stack().pop());
-        // drop all locals
+            results[i] = configuration.stack().pop();
+
+            // drop all locals
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
         Optional<Label> last_label;
