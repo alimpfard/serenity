@@ -29,6 +29,8 @@ public:
     void execute(Bytecode::Interpreter&) const;
     String to_string(Bytecode::Executable const&) const;
 
+    auto& source() const { return m_src; }
+
 private:
     Register m_src;
 };
@@ -44,6 +46,8 @@ public:
     void execute(Bytecode::Interpreter&) const;
     String to_string(Bytecode::Executable const&) const;
 
+    auto& value() const { return m_value; }
+
 private:
     Value m_value;
 };
@@ -58,6 +62,8 @@ public:
 
     void execute(Bytecode::Interpreter&) const;
     String to_string(Bytecode::Executable const&) const;
+
+    auto& destination() const { return m_dst; }
 
 private:
     Register m_dst;
@@ -98,6 +104,7 @@ private:
                                                                 \
         void execute(Bytecode::Interpreter&) const;             \
         String to_string(Bytecode::Executable const&) const;    \
+        auto& lhs() const { return m_lhs_reg; }                 \
                                                                 \
     private:                                                    \
         Register m_lhs_reg;                                     \
@@ -139,6 +146,8 @@ public:
     void execute(Bytecode::Interpreter&) const;
     String to_string(Bytecode::Executable const&) const;
 
+    auto& string_index() const { return m_string; }
+
 private:
     StringTableIndex m_string;
 };
@@ -165,6 +174,8 @@ public:
     void execute(Bytecode::Interpreter&) const;
     String to_string(Bytecode::Executable const&) const;
 
+    auto& value() const { return m_bigint; }
+
 private:
     Crypto::SignedBigInteger m_bigint;
 };
@@ -185,6 +196,8 @@ public:
 
     size_t length() const { return sizeof(*this) + sizeof(Register) * m_element_count; }
 
+    Span<Register const> elements() const { return { m_elements, m_element_count }; }
+
 private:
     size_t m_element_count { 0 };
     Register m_elements[];
@@ -201,6 +214,8 @@ public:
     void execute(Bytecode::Interpreter&) const;
     String to_string(Bytecode::Executable const&) const;
 
+    auto& lhs() const { return m_lhs; }
+
 private:
     Register m_lhs;
 };
@@ -215,6 +230,8 @@ public:
 
     void execute(Bytecode::Interpreter&) const;
     String to_string(Bytecode::Executable const&) const;
+
+    auto& identifier_index() const { return m_identifier; }
 
 private:
     StringTableIndex m_identifier;
@@ -231,6 +248,8 @@ public:
     void execute(Bytecode::Interpreter&) const;
     String to_string(Bytecode::Executable const&) const;
 
+    auto& identifier_index() const { return m_identifier; }
+
 private:
     StringTableIndex m_identifier;
 };
@@ -245,6 +264,8 @@ public:
 
     void execute(Bytecode::Interpreter&) const;
     String to_string(Bytecode::Executable const&) const;
+
+    auto& property_index() const { return m_property; }
 
 private:
     StringTableIndex m_property;
@@ -261,6 +282,9 @@ public:
 
     void execute(Bytecode::Interpreter&) const;
     String to_string(Bytecode::Executable const&) const;
+
+    auto& property_index() const { return m_property; }
+    auto& base() const { return m_base; }
 
 private:
     Register m_base;
@@ -293,6 +317,9 @@ public:
 
     void execute(Bytecode::Interpreter&) const;
     String to_string(Bytecode::Executable const&) const;
+
+    auto& true_target() const { return m_true_target; }
+    auto& false_target() const { return m_false_target; }
 
 protected:
     Optional<Label> m_true_target;
@@ -339,6 +366,10 @@ public:
 
     size_t length() const { return sizeof(*this) + sizeof(Register) * m_argument_count; }
 
+    auto& callee() const { return m_callee; }
+    auto& this_value() const { return m_this_value; }
+    Span<Register const> arguments() const { return { m_arguments, m_argument_count }; }
+
 private:
     Register m_callee;
     Register m_this_value;
@@ -356,6 +387,8 @@ public:
 
     void execute(Bytecode::Interpreter&) const;
     String to_string(Bytecode::Executable const&) const;
+
+    auto& scope() const { return m_scope_node; }
 
 private:
     ScopeNode const& m_scope_node;
@@ -407,6 +440,29 @@ public:
 
     void execute(Bytecode::Interpreter&) const;
     String to_string(Bytecode::Executable const&) const;
+};
+
+class Yield final : public Instruction {
+public:
+    constexpr static bool IsTerminator = true;
+
+    explicit Yield(Label continuation_label)
+        : Instruction(Type::Yield)
+        , m_continuation_label(continuation_label)
+    {
+    }
+
+    explicit Yield(std::nullptr_t)
+        : Instruction(Type::Yield)
+    {
+    }
+
+    void execute(Bytecode::Interpreter&) const;
+    String to_string(Bytecode::Executable const&) const;
+    auto& continuation_label() const { return m_continuation_label; }
+
+private:
+    Optional<Label> m_continuation_label;
 };
 
 }

@@ -35,7 +35,7 @@ Interpreter::~Interpreter()
     s_current = nullptr;
 }
 
-Value Interpreter::run(Executable const& executable)
+Value Interpreter::run(Executable const& executable, BasicBlock const* entry_point)
 {
     dbgln_if(JS_BYTECODE_DEBUG, "Bytecode::Interpreter will run unit {:p}", &executable);
 
@@ -54,7 +54,7 @@ Value Interpreter::run(Executable const& executable)
         VERIFY(!vm().exception());
     }
 
-    auto block = &executable.basic_blocks.first();
+    auto block = entry_point ?: &executable.basic_blocks.first();
     m_register_windows.append(make<RegisterWindow>());
     registers().resize(executable.number_of_registers);
 

@@ -57,7 +57,8 @@
     O(ConcatString)               \
     O(Increment)                  \
     O(Decrement)                  \
-    O(Throw)
+    O(Throw)                      \
+    O(Yield)
 
 namespace JS::Bytecode {
 

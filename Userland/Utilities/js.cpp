@@ -697,7 +697,13 @@ public:
 
     virtual JS::Value log() override
     {
-        outln("{}", vm().join_arguments());
+        if (vm().argument_count() == 1) {
+            HashTable<JS::Object*> seen_objects;
+            print_value(vm().argument(0), seen_objects);
+            outln();
+        } else {
+            outln("{}", vm().join_arguments());
+        }
         return JS::js_undefined();
     }
 

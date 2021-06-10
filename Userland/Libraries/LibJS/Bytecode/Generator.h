@@ -27,7 +27,7 @@ struct Executable {
 
 class Generator {
 public:
-    static Executable generate(ASTNode const&);
+    static Executable generate(ASTNode const&, bool is_in_generator_function = false);
 
     Register allocate_register();
 
@@ -83,6 +83,10 @@ public:
         return m_string_table->insert(string);
     }
 
+    bool is_in_generator_function() const { return m_is_in_generator_function; }
+    void enter_generator_context() { m_is_in_generator_function = true; }
+    void leave_generator_context() { m_is_in_generator_function = false; }
+
 private:
     Generator();
     ~Generator();
@@ -96,6 +100,7 @@ private:
 
     u32 m_next_register { 1 };
     u32 m_next_block { 1 };
+    bool m_is_in_generator_function { false };
     Vector<Label> m_continuable_scopes;
 };
 

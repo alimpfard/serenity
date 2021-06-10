@@ -1,0 +1,45 @@
+1:
+[   0] EnterScope
+[  10] LoadImmediate value:0
+[  28] SetVariable identifier:i
+[  38] LoadImmediate value:undefined
+[  50] Store dst:$1
+[  58] Jump @forTest
+forEnd:
+[   0] Load src:$1
+forBody:
+[   0] EnterScope
+[  10] GetVariable identifier:i
+[  20] Store dst:$3
+[  28] LoadImmediate value:4
+[  40] LessThan lhs:$3
+[  48] JumpIfTrue taken:@if true nontaken:@if false
+forTest:
+[   0] GetVariable identifier:i
+[  10] Store dst:$2
+[  18] LoadImmediate value:10
+[  30] LessThan lhs:$2
+[  38] JumpIfTrue taken:@forBody nontaken:@forEnd
+forUpdate:
+[   0] GetVariable identifier:i
+[  10] Store dst:$7
+[  18] LoadImmediate value:1
+[  30] Add lhs:$7
+[  38] SetVariable identifier:i
+[  48] Jump @forTest
+if true:
+[   0] EnterScope
+[  10] Jump @forTest
+[  38] Jump @if false
+if false:
+[   0] GetVariable identifier:console
+[  10] GetById property:log
+[  20] Store dst:$4
+[  28] LoadImmediate value:undefined
+[  40] Store dst:$5
+[  48] GetVariable identifier:i
+[  58] Store dst:$6
+[  60] Call callee:$4, this:$5, arguments:[$6]
+[  7c] Jump @forUpdate
+Dying because I can't to_object() on <empty>
+serenity-js: ../../Userland/Libraries/LibJS/Runtime/Value.cpp:446: JS::Object* JS::Value::to_object(JS::GlobalObject&) const: Assertion `false' failed.

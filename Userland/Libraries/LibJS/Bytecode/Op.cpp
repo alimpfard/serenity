@@ -219,7 +219,7 @@ void EnterScope::execute(Bytecode::Interpreter& interpreter) const
         vm.current_scope()->put_to_scope(declaration.name(), { js_undefined(), DeclarationKind::Var });
 
     for (auto& declaration : m_scope_node.functions()) {
-        auto* function = ScriptFunction::create(global_object, declaration.name(), declaration.body(), declaration.parameters(), declaration.function_length(), vm.current_scope(), declaration.is_strict_mode());
+        auto* function = ScriptFunction::create(global_object, declaration.name(), declaration.body(), declaration.parameters(), declaration.function_length(), vm.current_scope(), declaration.is_generator(), declaration.is_strict_mode());
         vm.set_variable(declaration.name(), function, global_object);
     }
 
@@ -259,6 +259,18 @@ void Decrement::execute(Bytecode::Interpreter& interpreter) const
 void Throw::execute(Bytecode::Interpreter& interpreter) const
 {
     interpreter.vm().throw_exception(interpreter.global_object(), interpreter.accumulator());
+}
+
+void Yield::execute(Bytecode::Interpreter& interpreter) const
+{
+    auto yielded_value = interpreter.accumulator().value_or(js_undefined());
+    auto object = JS::Object::create_empty(interpreter.global_object());
+    object->put("result", yielded_value);
+    if (m_continuation_label.has_value())
+        object->put("continuation", Value(static_cast<double>(reinterpret_cast<u64>(&m_continuation_label->block()))));
+    else
+        object->put("continuation", Value(0));
+    interpreter.do_return(object);
 }
 
 String Load::to_string(Bytecode::Executable const&) const
@@ -392,6 +404,13 @@ String Decrement::to_string(Bytecode::Executable const&) const
 String Throw::to_string(Bytecode::Executable const&) const
 {
     return "Throw";
+}
+
+String Yield::to_string(Bytecode::Executable const&) const
+{
+    if (m_continuation_label.has_value())
+        return String::formatted("Yield continuation:@{}", m_continuation_label->block().name());
+    return String::formatted("Yield return");
 }
 
 }
