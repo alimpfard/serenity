@@ -6,11 +6,9 @@
 
 #pragma once
 
-#include <AK/Result.h>
 #include <AK/Function.h>
 #include <AK/Result.h>
 #include <LibWeb/Fetch/LoadRequest.h>
-#include <LibWeb/Fetch/Response.h>
 
 namespace Web::Fetch {
 

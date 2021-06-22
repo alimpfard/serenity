@@ -106,12 +106,12 @@ public:
     // https://fetch.spec.whatwg.org/#is-local
     bool is_local() const
     {
-        return m_protocol.is_one_of("about", "blob", "data");
+        return m_scheme.is_one_of("about", "blob", "data");
     }
 
     bool is_http_or_https() const
     {
-        return m_protocol.is_one_of("http", "https");
+        return m_scheme.is_one_of("http", "https");
     }
 
     // https://url.spec.whatwg.org/#include-credentials
@@ -151,8 +151,6 @@ private:
     bool m_data_payload_is_base64 { false };
     String m_data_mime_type;
     String m_data_payload;
-    String m_username;
-    String m_password;
 };
 
 template<>

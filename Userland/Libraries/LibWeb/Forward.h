@@ -191,7 +191,6 @@ namespace Web {
 class EventHandler;
 class EditEventHandler;
 class BrowsingContext;
-class FrameLoader;
 class InProcessWebView;
 class Origin;
 class OutOfProcessWebView;

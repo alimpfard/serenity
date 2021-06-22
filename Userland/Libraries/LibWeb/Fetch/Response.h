@@ -78,7 +78,7 @@ public:
     void register_client(Badge<ResourceClient>, ResourceClient&);
     void unregister_client(Badge<ResourceClient>, ResourceClient&);
 
-//    const String& encoding() const { return m_encoding; }
+    //    const String& encoding() const { return m_encoding; }
     Optional<Core::MimeType> mime_type() const { return m_header_list.extract_mime_type(); }
 
     void for_each_client(Function<void(ResourceClient&)>);
@@ -155,6 +155,14 @@ public:
 
     const String& status_message() const { return m_status_message; }
 
+    OutputStream& output_memory_stream() { return m_memory_stream; }
+    void move_stream_into_body()
+    {
+        dbgln("Moving {} bytes into the body", m_memory_stream.size());
+        m_body = m_memory_stream.copy_into_contiguous_buffer();
+        m_memory_stream.discard_or_error(m_memory_stream.size());
+    }
+
 protected:
     Response();
 
@@ -174,6 +182,7 @@ private:
     FetchTimingInfo m_timing_info; // FIXME: This should be nullable, and null by default.
     HashTable<ResourceClient*> m_clients;
     RefPtr<Response> m_internal_response; // Used for filtered responses to contain the original response.
+    DuplexMemoryStream m_memory_stream;
 };
 
 class ResourceClient : public Weakable<ResourceClient> {

@@ -12,13 +12,13 @@
 #include <LibProtocol/Request.h>
 #include <LibProtocol/RequestClient.h>
 #include <LibWeb/Cookie/Cookie.h>
+#include <LibWeb/Cookie/ParsedCookie.h>
+#include <LibWeb/DOM/Document.h>
 #include <LibWeb/Fetch/ContentFilter.h>
 #include <LibWeb/Fetch/LoadRequest.h>
 #include <LibWeb/Fetch/ResourceLoader.h>
 #include <LibWeb/Fetch/Response.h>
-#include <LibWeb/Cookie/ParsedCookie.h>
-#include <LibWeb/Page/Frame.h>
-#include <LibWeb/DOM/Document.h>
+#include <LibWeb/Page/BrowsingContext.h>
 
 namespace Web::Fetch {
 
@@ -176,10 +176,6 @@ void ResourceLoader::load(const LoadRequest& request, Function<void(ReadonlyByte
                     error_callback("HTTP load failed", {});
                 return;
             }
-            deferred_invoke([protocol_request](auto&) {
-                // Clear circular reference of `protocol_request` captured by copy
-                const_cast<Protocol::Request&>(*protocol_request).on_buffered_request_finish = nullptr;
-            });
             success_callback(payload, response_headers, status_code);
         };
         protocol_request->set_should_buffer_all_input(true);
@@ -266,8 +262,8 @@ void ResourceLoader::fetch(LoadRequest& request, ProcessRequestBodyType process_
         VERIFY(request.client());
         // FIXME: This is complete guess work until environment settings objects are implemented.
         if (!request.is_navigation_request()) {
-            VERIFY(request.client()->focused_frame().document());
-            request.set_origin(request.client()->focused_frame().document()->origin());
+            VERIFY(request.client()->focused_context().document());
+            request.set_origin(request.client()->focused_context().document()->origin());
         } else {
             request.set_origin(Origin::create_from_url(request.url()));
         }
@@ -400,60 +396,60 @@ RefPtr<Response> ResourceLoader::main_fetch(const FetchParams& fetch_params, boo
         dbgln("Fetch: Doing non-recursive fetch.");
         // FIXME: This should be in parallel.
         //deferred_invoke([&](auto&) {
-            if (!response) {
-                dbgln("Fetch: No response, let's do this!");
-                response = do_fetch();
-            } else {
-                dbgln("Fetch: Not fetching, we already have a response!");
-            }
+        if (!response) {
+            dbgln("Fetch: No response, let's do this!");
+            response = do_fetch();
+        } else {
+            dbgln("Fetch: Not fetching, we already have a response!");
+        }
 
-            VERIFY(response);
+        VERIFY(response);
 
-            if (!response->is_network_error() && !response->is_filtered_response()) {
-                // FIXME: If request’s response tainting is "cors", then:
-                //          Let headerNames be the result of extracting header list values given `Access-Control-Expose-Headers` and response’s header list.
-                //          If request’s credentials mode is not "include" and headerNames contains `*`, then set response’s CORS-exposed header-name list to all unique header names in response’s header list.
-                //          Otherwise, if headerNames is not null or failure, then set response’s CORS-exposed header-name list to headerNames.
+        if (!response->is_network_error() && !response->is_filtered_response()) {
+            // FIXME: If request’s response tainting is "cors", then:
+            //          Let headerNames be the result of extracting header list values given `Access-Control-Expose-Headers` and response’s header list.
+            //          If request’s credentials mode is not "include" and headerNames contains `*`, then set response’s CORS-exposed header-name list to all unique header names in response’s header list.
+            //          Otherwise, if headerNames is not null or failure, then set response’s CORS-exposed header-name list to headerNames.
 
-                response = response->to_filtered_response(request.response_tainting());
-            }
+            response = response->to_filtered_response(request.response_tainting());
+        }
 
-            // FIXME: This is a bit sad that this is a RefPtr instead of a NonnullRefPtr.
-            RefPtr<Response> internal_response;
+        // FIXME: This is a bit sad that this is a RefPtr instead of a NonnullRefPtr.
+        RefPtr<Response> internal_response;
 
-            if (response->is_network_error())
-                internal_response = response;
-            else
-                internal_response = response->internal_response();
+        if (response->is_network_error())
+            internal_response = response;
+        else
+            internal_response = response->internal_response();
 
-            VERIFY(internal_response);
+        VERIFY(internal_response);
 
-            if (internal_response->header_list().is_empty())
-                internal_response->set_header_list({}, request.headers());
+        if (internal_response->header_list().is_empty())
+            internal_response->set_header_list({}, request.headers());
 
-            if (!request.timing_allow_failed())
-                internal_response->set_timing_allow_passed({}, true);
+        if (!request.timing_allow_failed())
+            internal_response->set_timing_allow_passed({}, true);
 
-            if (!response->is_network_error()) {
-                // FIXME: Mixed content
-                // FIXME: CSP
-                // FIXME: Maybe split these up so we can have an error message for which one failed?
-                if (internal_response->should_be_blocked_due_to_mime_type(request) || internal_response->should_be_blocked_due_to_nosniff(request))
-                    response = internal_response = Response::create_network_error({});
-            }
-
-            if (response->new_type() == Response::NewType::Opaque && internal_response->status() == 206 && internal_response->range_requested() && !request.headers().contains("Range"))
+        if (!response->is_network_error()) {
+            // FIXME: Mixed content
+            // FIXME: CSP
+            // FIXME: Maybe split these up so we can have an error message for which one failed?
+            if (internal_response->should_be_blocked_due_to_mime_type(request) || internal_response->should_be_blocked_due_to_nosniff(request))
                 response = internal_response = Response::create_network_error({});
+        }
 
-            if (!response->is_network_error() && (request.method().is_one_of("HEAD", "CONNECT") || internal_response->has_null_body_status())) {
-                // FIXME:  set internalResponse’s body to null and disregard any enqueuing toward it (if any)
-            }
+        if (response->new_type() == Response::NewType::Opaque && internal_response->status() == 206 && internal_response->range_requested() && !request.headers().contains("Range"))
+            response = internal_response = Response::create_network_error({});
 
-            // FIXME: If request’s integrity metadata is not the empty string, then:
-            //          Do a bunch of stuff
+        if (!response->is_network_error() && (request.method().is_one_of("HEAD", "CONNECT") || internal_response->has_null_body_status())) {
+            // FIXME:  set internalResponse’s body to null and disregard any enqueuing toward it (if any)
+        }
 
-            fetch_finale(fetch_params, response.release_nonnull());
-       // });
+        // FIXME: If request’s integrity metadata is not the empty string, then:
+        //          Do a bunch of stuff
+
+        fetch_finale(fetch_params, response.release_nonnull());
+        // });
 
         // Fetch does not return response on this path. The return value is only used for recursive calls.
         return {};
@@ -475,9 +471,9 @@ RefPtr<Response> ResourceLoader::scheme_fetch(const FetchParams& fetch_params)
     if (url.protocol() == "about") {
         // FIXME:
         dbgln("Loading about: URL {}", url);
-//        deferred_invoke([success_callback = move(success_callback)](auto&) {
-//            success_callback(String::empty().to_byte_buffer(), {}, {});
-//        });
+        //        deferred_invoke([success_callback = move(success_callback)](auto&) {
+        //            success_callback(String::empty().to_byte_buffer(), {}, {});
+        //        });
         return Response::create_network_error({});
     }
 
@@ -618,7 +614,7 @@ RefPtr<Response> ResourceLoader::http_network_or_cache_fetch(const FetchParams& 
     if (request.referrer().has<URL>()) {
         // FIXME: Isomorphic encode the serialized URL.
         // FIXME: Is this an encoded URL?
-        request.append_header("Referer", request.referrer().get<URL>().to_string_encoded());
+        request.append_header("Referer", request.referrer().get<URL>().to_string());
     }
 
     // https://fetch.spec.whatwg.org/#append-a-request-origin-header
@@ -741,7 +737,7 @@ RefPtr<Response> ResourceLoader::http_network_or_cache_fetch(const FetchParams& 
     }
 
     // Handle HTTP status 421 - Misdirected Request
-    if (response->status() == 421 && !is_new_connection_fetch && request.body().is_empty() /* FIXME: or request’s body is non-null and request’s body’s source is non-null */ ) {
+    if (response->status() == 421 && !is_new_connection_fetch && request.body().is_empty() /* FIXME: or request’s body is non-null and request’s body’s source is non-null */) {
         // FIXME: If the ongoing fetch is terminated, then:
         //          Let aborted be the termination’s aborted flag.
         //          If aborted is set, then return an aborted network error.
@@ -758,7 +754,7 @@ RefPtr<Response> ResourceLoader::http_network_or_cache_fetch(const FetchParams& 
 RefPtr<Response> ResourceLoader::http_network_fetch(const FetchParams& fetch_params, bool include_credentials, [[maybe_unused]] bool force_new_connection)
 {
     auto& request = fetch_params.request;
-    RefPtr<Response> response;
+    auto response = Response::create({}, Response::Type::Generic);
     // FIXME: Let timingInfo be fetchParams’s timing info.
     // FIXME: Let httpCache be the result of determining the HTTP cache partition, given httpRequest.
     // FIXME: If httpCache is null: (which it always is currently)
@@ -783,39 +779,31 @@ RefPtr<Response> ResourceLoader::http_network_fetch(const FetchParams& fetch_par
 
     Core::EventLoop loop;
 
-    dbgln("Fetch: Creating {} request for {}", request.method(), request.current_url().to_string_encoded());
-    auto protocol_request = protocol_client().start_request(request.method(), request.current_url().to_string_encoded(), request.headers(), request.body());
+    dbgln("Fetch: Creating {} request for {}", request.method(), request.current_url().to_string());
+    auto protocol_request = protocol_client().start_request(request.method(), request.current_url().to_string(), request.headers(), request.body());
     if (!protocol_request) {
         dbgln("Fetch: Failed to create request.");
         return Response::create_network_error({});
     }
-//    protocol_request->on_headers_received = ([&](const HashMap<String, String, CaseInsensitiveStringTraits>& response_headers, Optional<u32> response_code) {
-//        response = Response::create({}, Response::Type::Generic);
-//        for (auto& header : response_headers)
-//            response->append_header({}, header.key, header.value);
-//        response->set_status({}, response_code.value());
-//        loop.quit(0);
-//    });
-//    dbgln("Wowe");
-//    protocol_request->on_headers_received = [&](auto& headers, auto response_code) {
-//        dbgln("Fetch: Headers received, let's continue.");
-//        VERIFY(response_code.has_value());
-//        for (auto& header : headers)
-//            response->append_header({}, header.key, header.value);
-//        response->set_status({}, response_code.value());
-//        loop.quit(0);
-//    };
-//    protocol_request->on_certificate_requested = []() -> Protocol::Request::CertificateAndKey {
-//        return {};
-//    };
-//    protocol_request->stream_into(response->output_memory_stream({}));
-//    protocol_request->on_finish = [response = move(response), this, &fetch_params](bool success, auto) {
-//        RefPtr<Response> res = response;
-//        VERIFY(success); // FIXME: Handle non-success
-//        //res->set_body(res->output_memory_stream({}).bytes()); // FIXME: Not exactly optimal...
-//        finalize_response(fetch_params, res);
-//    };
+#if 1
+    protocol_request->on_headers_received = [response, &loop](const HashMap<String, String, CaseInsensitiveStringTraits>& response_headers, Optional<u32> response_code) mutable {
+        for (auto& header : response_headers)
+            response->append_header({}, header.key, header.value);
+        response->set_status({}, response_code.value());
+        loop.quit(0);
+    };
+    dbgln("Wowe");
+    protocol_request->on_certificate_requested = []() -> Protocol::Request::CertificateAndKey {
+        return {};
+    };
+    protocol_request->on_finish = [response, this, &fetch_params](bool success, auto) mutable {
+        VERIFY(success); // FIXME: Handle non-success
+        response->move_stream_into_body();
+        finalize_response(fetch_params, response);
+    };
+    protocol_request->stream_into(response->output_memory_stream());
 
+#else
     protocol_request->on_buffered_request_finish = [&](bool success, auto, auto& response_headers, auto status_code, ReadonlyBytes payload) {
         if (!success) {
             response = Response::create_network_error({});
@@ -837,6 +825,7 @@ RefPtr<Response> ResourceLoader::http_network_fetch(const FetchParams& fetch_par
     protocol_request->on_certificate_requested = []() -> Protocol::Request::CertificateAndKey {
         return {};
     };
+#endif
 
     // Fetch mandates that we have to wait for the headers to come in before continuing.
     dbgln("Fetch: Waiting to receive headers...");
@@ -868,8 +857,6 @@ RefPtr<Response> ResourceLoader::http_network_fetch(const FetchParams& fetch_par
     //          Let aborted be the termination’s aborted flag.
     //          If aborted is set, then set response’s aborted flag.
     //          Return response.
-
-    VERIFY(response);
 
     return response;
 }

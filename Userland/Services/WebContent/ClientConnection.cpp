@@ -20,7 +20,6 @@
 #include <LibWeb/Dump.h>
 #include <LibWeb/Fetch/ResourceLoader.h>
 #include <LibWeb/Layout/InitialContainingBlockBox.h>
-#include <LibWeb/Loader/ResourceLoader.h>
 #include <LibWeb/Page/BrowsingContext.h>
 #include <WebContent/ClientConnection.h>
 #include <WebContent/PageHost.h>

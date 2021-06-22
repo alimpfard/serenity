@@ -23,7 +23,6 @@
 #include <LibWeb/Layout/InitialContainingBlockBox.h>
 #include <LibWeb/Layout/Node.h>
 #include <LibWeb/Layout/TextNode.h>
-#include <LibWeb/Loader/ResourceLoader.h>
 #include <LibWeb/Page/BrowsingContext.h>
 #include <LibWeb/Page/EventHandler.h>
 #include <LibWeb/Painting/PaintContext.h>
@@ -338,7 +337,7 @@ void InProcessWebView::load_html(const StringView& html, const URL& url)
 bool InProcessWebView::load(const URL& url)
 {
     set_override_cursor(Gfx::StandardCursor::None);
-    return page().top_level_browsing_context().loader().load(url, FrameLoader::Type::Navigation);
+    return page().top_level_browsing_context().loader().load(url, Fetch::FrameLoader::Type::Navigation);
 }
 
 const Layout::InitialContainingBlockBox* InProcessWebView::layout_root() const

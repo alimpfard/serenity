@@ -6,6 +6,7 @@
 
 #include <LibWeb/DOM/Document.h>
 #include <LibWeb/DOM/Event.h>
+#include <LibWeb/Fetch/FrameLoader.h>
 #include <LibWeb/HTML/BrowsingContextContainer.h>
 #include <LibWeb/Origin.h>
 #include <LibWeb/Page/BrowsingContext.h>
@@ -50,7 +51,7 @@ const DOM::Document* BrowsingContextContainer::content_document() const
     return m_nested_browsing_context ? m_nested_browsing_context->document() : nullptr;
 }
 
-void BrowsingContextContainer::nested_browsing_context_did_load(Badge<FrameLoader>)
+void BrowsingContextContainer::nested_browsing_context_did_load(Badge<Fetch::FrameLoader>)
 {
     dispatch_event(DOM::Event::create(EventNames::load));
 }

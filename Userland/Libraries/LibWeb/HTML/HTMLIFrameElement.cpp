@@ -60,7 +60,7 @@ void HTMLIFrameElement::load_src(const String& value)
     }
 
     dbgln("Loading iframe document from {}", value);
-    m_nested_browsing_context->loader().load(url, FrameLoader::Type::IFrame);
+    m_nested_browsing_context->loader().load(url, Fetch::FrameLoader::Type::IFrame);
 }
 
 }

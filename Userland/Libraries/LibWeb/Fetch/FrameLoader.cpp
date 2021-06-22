@@ -143,6 +143,11 @@ bool FrameLoader::load(const LoadRequest& request, Type type)
 
     auto& url = request.url();
 
+    if (type == Type::Navigation || type == Type::Reload) {
+        if (auto* page = browsing_context().page())
+            page->client().page_did_start_loading(url);
+    }
+
     // FIXME: HACK
     auto resource = ResourceLoader::the().load_resource(Response::Type::Generic, request);
     Vector<URL> urls;
@@ -150,13 +155,6 @@ bool FrameLoader::load(const LoadRequest& request, Type type)
     resource->set_url_list(urls);
 
     set_resource(resource);
-
-    if (type == Type::Navigation || type == Type::Reload) {
-        if (auto* page = browsing_context().page())
-            page->client().page_did_start_loading(url);
-    }
-
-    set_resource(ResourceLoader::the().load_resource(Resource::Type::Generic, request));
 
     if (type == Type::IFrame)
         return true;
@@ -254,11 +252,6 @@ void FrameLoader::resource_did_load()
     }
     m_redirects_count = 0;
 
-    if (!resource()->has_encoded_data()) {
-        load_error_page(url, "No data");
-        return;
-    }
-
     auto mime_type = resource()->mime_type();
     String encoding;
 
@@ -274,7 +267,6 @@ void FrameLoader::resource_did_load()
             dbgln("This content has MIME type '{}', encoding unknown", mime_type.value().essence());
         }
     }
-
 
     auto document = DOM::Document::create();
     document->set_url(url);

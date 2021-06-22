@@ -11,8 +11,6 @@
 #include <LibWeb/Fetch/LoadRequest.h>
 #include <LibWeb/Fetch/ResourceLoader.h>
 #include <LibWeb/InProcessWebView.h>
-#include <LibWeb/Loader/LoadRequest.h>
-#include <LibWeb/Loader/ResourceLoader.h>
 #include <LibWeb/Page/BrowsingContext.h>
 
 namespace Web::CSS {

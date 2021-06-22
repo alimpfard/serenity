@@ -112,10 +112,10 @@ void HTMLFormElement::submit_form(RefPtr<HTMLElement> submitter, bool from_submi
 
     if (effective_method == "post") {
         auto body = urlencode(parameters, URL::PercentEncodeSet::ApplicationXWWWFormUrlencoded).to_byte_buffer();
-        request.set_method("POST");
-        request.set_header("Content-Type", "application/x-www-form-urlencoded");
-        request.set_header("Content-Length", String::number(body.size()));
-        request.set_body(body);
+        request->set_method("POST");
+        request->set_header("Content-Type", "application/x-www-form-urlencoded");
+        request->set_header("Content-Length", String::number(body.size()));
+        request->set_body(body);
     }
 
     if (auto* page = document().page())
