@@ -205,6 +205,12 @@ ssize_t TLSv12::handle_handshake_finished(ReadonlyBytes buffer, WritePacketStage
     if (on_tls_ready_to_write)
         on_tls_ready_to_write(*this);
 
+    for (auto& object : m_vended_notifiers) {
+        auto& notifier = static_cast<TLSNotifier&>(*object);
+        if (notifier.on_ready_to_write && notifier.is_enabled(Core::AbstractNotifier::Event::Write))
+            notifier.on_ready_to_write();
+    }
+
     return index + size;
 }
 

@@ -19,7 +19,7 @@ void GeminiJob::start()
     VERIFY(!m_socket);
     m_socket = TLS::TLSv12::construct(this);
     m_socket->set_root_certificates(m_override_ca_certificates ? *m_override_ca_certificates : DefaultRootCACertificates::the().certificates());
-    m_socket->on_tls_connected = [this] {
+    m_socket->on_connected = [this] {
         dbgln_if(GEMINIJOB_DEBUG, "GeminiJob: on_connected callback");
         on_socket_connected();
     };
@@ -45,7 +45,7 @@ void GeminiJob::start()
         if (on_certificate_requested)
             on_certificate_requested(*this);
     };
-    bool success = ((TLS::TLSv12&)*m_socket).connect(m_request.url().host(), m_request.url().port());
+    bool success = static_cast<Core::SocketLikeIODevice&>(*m_socket).connect(m_request.url().host(), m_request.url().port());
     if (!success) {
         deferred_invoke([this](auto&) {
             return did_fail(Core::NetworkJob::Error::ConnectionFailed);
@@ -57,8 +57,8 @@ void GeminiJob::shutdown()
 {
     if (!m_socket)
         return;
-    m_socket->on_tls_ready_to_read = nullptr;
-    m_socket->on_tls_connected = nullptr;
+    m_socket->on_ready_to_read = nullptr;
+    m_socket->on_connected = nullptr;
     remove_child(*m_socket);
     m_socket = nullptr;
 }
@@ -82,7 +82,7 @@ void GeminiJob::set_certificate(String certificate, String private_key)
 
 void GeminiJob::register_on_ready_to_read(Function<void()> callback)
 {
-    m_socket->on_tls_ready_to_read = [callback = move(callback)](auto&) {
+    m_socket->on_ready_to_read = [callback = move(callback)] {
         callback();
     };
 }
@@ -118,7 +118,7 @@ bool GeminiJob::can_read() const
 
 bool GeminiJob::eof() const
 {
-    return m_socket->eof();
+    return m_socket->unreliable_eof();
 }
 
 bool GeminiJob::write(ReadonlyBytes bytes)

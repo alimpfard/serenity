@@ -122,7 +122,7 @@ bool Socket::common_connect(const struct sockaddr* addr, socklen_t addrlen)
             return true;
         }
         int saved_errno = errno;
-        warnln("Core::Socket: Failed to connect() to {}: {}", destination_address().to_string(), strerror(saved_errno));
+        dbgln("Core::Socket: Failed to connect() to {}: {}", destination_address().to_string(), strerror(saved_errno));
         errno = saved_errno;
         return false;
     }

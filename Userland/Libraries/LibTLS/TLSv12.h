@@ -302,12 +302,11 @@ struct Context {
     time_t handshake_initiation_timestamp { 0 };
 };
 
-class TLSv12 : public Core::Socket {
+class TLSv12 : public Core::SocketLikeIODevice {
     C_OBJECT(TLSv12)
 public:
     ByteBuffer& write_buffer() { return m_context.tls_buffer; }
     bool is_established() const { return m_context.connection_status == ConnectionStatus::Established; }
-    virtual bool connect(const String&, int) override;
 
     void set_sni(const StringView& sni)
     {
@@ -364,17 +363,29 @@ public:
     bool can_read() const { return m_context.application_buffer.size() > 0; }
     String read_line(size_t max_size);
 
-    Function<void(TLSv12&)> on_tls_ready_to_read;
+    // ^Core::SocketLikeIO
+    virtual bool connect(const String&, int) override;
+    virtual bool connect(const Core::SocketAddress&, int port) override;
+    virtual bool connect(const Core::SocketAddress&) override;
+    virtual bool shutdown() override;
+    virtual bool is_connected() const override;
+    virtual bool unreliable_eof() const override;
+    virtual bool discard_or_error(size_t count) override;
+    virtual RefPtr<Core::AbstractNotifier> make_notifier(unsigned event_mask) override;
+
+    void register_notifier(Core::AbstractNotifier&);
+    void remove_notifier(Core::AbstractNotifier&);
+
     Function<void(TLSv12&)> on_tls_ready_to_write;
     Function<void(AlertDescription)> on_tls_error;
-    Function<void()> on_tls_connected;
     Function<void()> on_tls_finished;
     Function<void(TLSv12&)> on_tls_certificate_request;
 
 private:
-    explicit TLSv12(Core::Object* parent, Options = {});
+    explicit TLSv12(Core::Object* parent, RefPtr<Core::SocketLikeIODevice> transport = {}, Options = {});
 
-    virtual bool common_connect(const struct sockaddr*, socklen_t) override;
+    bool check_connection_state(bool read);
+    bool setup_connection();
 
     void consume(ReadonlyBytes record);
 
@@ -401,8 +412,6 @@ private:
     bool flush();
     void write_into_socket();
     void read_from_socket();
-
-    bool check_connection_state(bool read);
 
     ssize_t handle_server_hello(ReadonlyBytes, WritePacketStage&);
     ssize_t handle_handshake_finished(ReadonlyBytes, WritePacketStage&);
@@ -508,6 +517,37 @@ private:
     i32 m_max_wait_time_for_handshake_in_seconds { 10 };
 
     RefPtr<Core::Timer> m_handshake_timeout_timer;
+
+    RefPtr<Core::SocketLikeIODevice> m_transport;
+    Vector<RefPtr<Core::Object>> m_vended_notifiers;
 };
 
+class TLSNotifier : public Core::AbstractNotifier {
+    C_OBJECT(TLSNotifier);
+
+public:
+    TLSNotifier(Core::Object* parent, TLSv12& tls, unsigned mask)
+        : Core::AbstractNotifier(parent)
+        , m_tls(tls)
+        , m_mask(mask)
+    {
+        m_tls.register_notifier(*this);
+    }
+
+    ~TLSNotifier()
+    {
+        close();
+    }
+
+    virtual void set_enabled(bool enabled) override { m_enabled = enabled; }
+    virtual void close() override { m_tls.remove_notifier(*this); }
+
+    bool is_enabled() const { return m_enabled; }
+    bool is_enabled(Core::AbstractNotifier::Event event) const { return m_enabled && (m_mask & event) == event; }
+
+private:
+    TLSv12& m_tls;
+    unsigned m_mask { 0 };
+    bool m_enabled { false };
+};
 }

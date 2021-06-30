@@ -147,8 +147,8 @@ static void tls(const char* message, size_t len)
         tls = TLS::TLSv12::construct(nullptr);
         tls->set_root_certificates(s_root_ca_certificates);
         tls->connect(server ?: DEFAULT_SERVER, port);
-        tls->on_tls_ready_to_read = [](auto& tls) {
-            auto buffer = tls.read();
+        tls->on_ready_to_read = []() mutable {
+            auto buffer = tls->read();
             if (buffer.has_value())
                 out("{}", StringView { buffer->data(), buffer->size() });
         };
@@ -2030,8 +2030,8 @@ static void tls_test_client_hello()
             loop.quit(0);
         }
     };
-    tls->on_tls_ready_to_read = [&](TLS::TLSv12& tls) {
-        auto data = tls.read();
+    tls->on_ready_to_read = [&]() mutable {
+        auto data = tls->read();
         if (!data.has_value()) {
             FAIL(No data received);
             loop.quit(1);

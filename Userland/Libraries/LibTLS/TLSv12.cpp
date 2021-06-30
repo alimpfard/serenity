@@ -17,10 +17,6 @@
 #include <LibTLS/TLSv12.h>
 #include <errno.h>
 
-#ifndef SOCK_NONBLOCK
-#    include <sys/ioctl.h>
-#endif
-
 namespace TLS {
 
 void TLSv12::consume(ReadonlyBytes record)
@@ -299,29 +295,64 @@ void TLSv12::pseudorandom_function(Bytes output, ReadonlyBytes secret, const u8*
     }
 }
 
-TLSv12::TLSv12(Core::Object* parent, Options options)
+bool TLSv12::shutdown()
+{
+    if (is_connected()) {
+        alert(AlertLevel::Critical, AlertDescription::UserCanceled);
+        m_context.connection_finished = true;
+    }
+    return m_transport->shutdown();
+}
+
+bool TLSv12::is_connected() const
+{
+    return is_established();
+}
+
+bool TLSv12::unreliable_eof() const
+{
+    return m_context.connection_finished && m_context.application_buffer.is_empty();
+}
+
+bool TLSv12::discard_or_error(size_t count)
+{
+    auto new_start = min(m_context.application_buffer.size(), count);
+    m_context.application_buffer = m_context.application_buffer.slice(new_start, m_context.application_buffer.size() - new_start);
+    return new_start == count;
+}
+
+RefPtr<Core::AbstractNotifier> TLSv12::make_notifier(unsigned mask)
+{
+    return TLSNotifier::construct(this, *this, mask);
+}
+
+void TLSv12::register_notifier(Core::AbstractNotifier& notifier)
+{
+    auto it = m_vended_notifiers.find_if([](auto& ptr) { return ptr.is_null(); });
+    if (it != m_vended_notifiers.end())
+        *it = notifier;
+    else
+        m_vended_notifiers.append(notifier);
+}
+
+void TLSv12::remove_notifier(Core::AbstractNotifier& notifier)
+{
+    auto it = m_vended_notifiers.find_if([&notifier](auto& ptr) { return ptr == &notifier; });
+    if (it != m_vended_notifiers.end())
+        it->clear();
+}
+
+TLSv12::TLSv12(Core::Object* parent, RefPtr<Core::SocketLikeIODevice> transport, Options options)
     : Core::IODevice(parent)
     , Core::SocketLikeIODevice(parent)
-    , Core::FileLikeIODevice(parent)
-    , Core::Socket(parent)
 {
     m_context.options = move(options);
     m_context.is_server = false;
     m_context.tls_buffer = ByteBuffer::create_uninitialized(0);
-#ifdef SOCK_NONBLOCK
-    int fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
-#else
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
-    int option = 1;
-    ioctl(fd, FIONBIO, &option);
-#endif
-    if (fd < 0) {
-        set_error(errno);
-    } else {
-        set_fd(fd);
-        set_mode(Core::OpenMode::ReadWrite);
-        set_error(0);
-    }
+    if (transport)
+        m_transport = move(transport);
+    else
+        m_transport = Core::TCPSocket::construct(parent);
 }
 
 bool TLSv12::add_client_key(ReadonlyBytes certificate_pem_buffer, ReadonlyBytes rsa_key) // FIXME: This should not be bound to RSA

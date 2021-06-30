@@ -92,13 +92,12 @@ TEST_CASE(test_TLS_hello_handshake)
             loop.quit(0);
         }
     };
-    tls->on_tls_ready_to_read = [&](TLS::TLSv12& tls) {
-        auto data = tls.read();
+    tls->on_ready_to_read = [&]() mutable {
+        auto data = tls->read();
         if (!data.has_value()) {
             FAIL("No data received");
             loop.quit(1);
         } else {
-            //            print_buffer(data.value(), 16);
             contents.append(data.value().data(), data.value().size());
         }
     };

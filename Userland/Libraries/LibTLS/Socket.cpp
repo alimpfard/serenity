@@ -74,24 +74,39 @@ size_t TLSv12::write(ReadonlyBytes buffer)
 bool TLSv12::connect(const String& hostname, int port)
 {
     set_sni(hostname);
-    return Core::Socket::connect(hostname, port);
+    dbgln("Setting up connection to {}:{}", hostname, port);
+    if (!setup_connection())
+        return false;
+    if (m_transport->is_connected())
+        return true;
+    return m_transport->connect(hostname, port);
 }
 
-bool TLSv12::common_connect(const struct sockaddr* saddr, socklen_t length)
+bool TLSv12::connect(const Core::SocketAddress& address)
+{
+    if (!setup_connection())
+        return false;
+    if (m_transport->is_connected())
+        return true;
+    return m_transport->connect(address);
+}
+
+bool TLSv12::connect(const Core::SocketAddress& address, int port)
+{
+    if (!setup_connection())
+        return false;
+    if (m_transport->is_connected())
+        return true;
+    return m_transport->connect(address, port);
+}
+
+bool TLSv12::setup_connection()
 {
     if (m_context.critical_error)
         return false;
 
-    if (Core::Socket::is_connected()) {
-        if (is_established()) {
-            VERIFY_NOT_REACHED();
-        } else {
-            Core::Socket::close(); // reuse?
-        }
-    }
-
-    Core::Socket::on_connected = [this] {
-        Core::Socket::on_ready_to_read = [this] {
+    m_transport->on_connected = [this] {
+        m_transport->on_ready_to_read = [this] {
             read_from_socket();
         };
 
@@ -126,12 +141,9 @@ bool TLSv12::common_connect(const struct sockaddr* saddr, socklen_t length)
         });
         m_has_scheduled_write_flush = true;
 
-        if (on_tls_connected)
-            on_tls_connected();
+        if (on_connected)
+            on_connected();
     };
-    bool success = Core::Socket::common_connect(saddr, length);
-    if (!success)
-        return false;
 
     return true;
 }
@@ -145,8 +157,14 @@ void TLSv12::read_from_socket()
                 deferred_invoke([&](auto&) { read_from_socket(); });
                 did_schedule_read = true;
             }
-            if (on_tls_ready_to_read)
-                on_tls_ready_to_read(*this);
+            if (on_ready_to_read)
+                on_ready_to_read();
+
+            for (auto& object : m_vended_notifiers) {
+                auto& notifier = static_cast<TLSNotifier&>(*object);
+                if (notifier.on_ready_to_read && notifier.is_enabled(Core::AbstractNotifier::Event::Read))
+                    notifier.on_ready_to_read();
+            }
         }
     };
 
@@ -158,7 +176,7 @@ void TLSv12::read_from_socket()
         return;
 
     char buf[4096];
-    auto nread = Core::Socket::read({ buf, 4096 });
+    auto nread = m_transport->read({ buf, 4096 });
     consume({ buf, nread });
     // If anything new shows up, tell the client about the event.
     notify_client_for_app_data();
@@ -176,18 +194,25 @@ void TLSv12::write_into_socket()
     if (!is_established())
         return;
 
-    if (!m_context.application_buffer.size()) // hey client, you still have stuff to read...
+    if (!m_context.application_buffer.size()) { // hey client, you still have stuff to read...
         if (on_tls_ready_to_write)
             on_tls_ready_to_write(*this);
+
+        for (auto& object : m_vended_notifiers) {
+            auto& notifier = static_cast<TLSNotifier&>(*object);
+            if (notifier.on_ready_to_write && notifier.is_enabled(Core::AbstractNotifier::Event::Write))
+                notifier.on_ready_to_write();
+        }
+    }
 }
 
 bool TLSv12::check_connection_state(bool read)
 {
-    if (!Core::Socket::is_open() || !Core::Socket::is_connected()) {
+    if (!m_transport->is_connected()) {
         // an abrupt closure (the server is a jerk)
         dbgln_if(TLS_DEBUG, "Socket not open, assuming abrupt closure");
         m_context.connection_finished = true;
-    } else if (Core::Socket::eof()) {
+    } else if (m_transport->unreliable_eof()) {
         // Treat this as connection finished only if there's nothing to send (i.e. the server is waiting for us to say something)
         if (m_context.tls_buffer.is_empty())
             m_context.connection_finished = true;
@@ -214,7 +239,7 @@ bool TLSv12::check_connection_state(bool read)
         }
         if (!m_context.application_buffer.size()) {
             m_context.connection_status = ConnectionStatus::Disconnected;
-            Core::Socket::close();
+            m_transport->shutdown();
             return false;
         }
     }
@@ -234,7 +259,7 @@ bool TLSv12::flush()
         dbgln("SENDING...");
         print_buffer(out_buffer, out_buffer_length);
     }
-    auto bytes_written = Core::Socket::write({ &out_buffer[out_buffer_index], out_buffer_length });
+    auto bytes_written = m_transport->write({ &out_buffer[out_buffer_index], out_buffer_length });
     if (bytes_written == out_buffer_length) {
         write_buffer().clear();
         return true;

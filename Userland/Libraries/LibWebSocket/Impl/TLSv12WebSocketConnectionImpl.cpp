@@ -35,7 +35,7 @@ void TLSv12WebSocketConnectionImpl::connect(ConnectionInfo const& connection)
     m_socket->on_tls_error = [this](TLS::AlertDescription) {
         on_connection_error();
     };
-    m_socket->on_tls_ready_to_read = [this](auto&) {
+    m_socket->on_ready_to_read = [this] {
         on_ready_to_read();
     };
     m_socket->on_tls_ready_to_write = [this](auto&) {
@@ -84,14 +84,14 @@ ByteBuffer TLSv12WebSocketConnectionImpl::read(int max_size)
 
 bool TLSv12WebSocketConnectionImpl::eof()
 {
-    return m_socket->eof();
+    return m_socket->unreliable_eof();
 }
 
 void TLSv12WebSocketConnectionImpl::discard_connection()
 {
     if (!m_socket)
         return;
-    m_socket->on_tls_connected = nullptr;
+    m_socket->on_connected = nullptr;
     m_socket->on_tls_error = nullptr;
     m_socket->on_tls_finished = nullptr;
     m_socket->on_tls_certificate_request = nullptr;

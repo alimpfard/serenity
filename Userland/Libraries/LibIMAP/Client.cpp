@@ -37,13 +37,13 @@ Optional<RefPtr<Promise<Empty>>> Client::connect()
 
 bool Client::connect_tls()
 {
-    m_tls_socket->on_tls_ready_to_read = [&](TLS::TLSv12&) {
+    m_tls_socket->on_ready_to_read = [&] {
         on_tls_ready_to_receive();
     };
     m_tls_socket->on_tls_error = [&](TLS::AlertDescription alert) {
         dbgln("failed: {}", alert_name(alert));
     };
-    m_tls_socket->on_tls_connected = [&] {
+    m_tls_socket->on_connected = [&] {
         dbgln("connected");
     };
     auto success = m_tls_socket->connect(m_host, m_port);
@@ -455,9 +455,9 @@ RefPtr<Promise<Optional<SolidResponse>>> Client::copy(Sequence sequence_set, Str
 void Client::close()
 {
     if (m_tls) {
-        m_tls_socket->close();
+        m_tls_socket->shutdown();
     } else {
-        m_socket->close();
+        m_socket->shutdown();
     }
 }
 }

@@ -19,7 +19,7 @@ void HttpsJob::start()
     VERIFY(!m_socket);
     m_socket = TLS::TLSv12::construct(this);
     m_socket->set_root_certificates(m_override_ca_certificates ? *m_override_ca_certificates : DefaultRootCACertificates::the().certificates());
-    m_socket->on_tls_connected = [this] {
+    m_socket->on_connected = [this] {
         dbgln_if(HTTPSJOB_DEBUG, "HttpsJob: on_connected callback");
         on_socket_connected();
     };
@@ -46,7 +46,7 @@ void HttpsJob::start()
         if (on_certificate_requested)
             on_certificate_requested(*this);
     };
-    bool success = ((TLS::TLSv12&)*m_socket).connect(m_request.url().host(), m_request.url().port());
+    bool success = m_socket->connect(m_request.url().host(), m_request.url().port());
     if (!success) {
         deferred_invoke([this](auto&) {
             return did_fail(Core::NetworkJob::Error::ConnectionFailed);
@@ -58,8 +58,8 @@ void HttpsJob::shutdown()
 {
     if (!m_socket)
         return;
-    m_socket->on_tls_ready_to_read = nullptr;
-    m_socket->on_tls_connected = nullptr;
+    m_socket->on_ready_to_read = nullptr;
+    m_socket->on_connected = nullptr;
     remove_child(*m_socket);
     m_socket = nullptr;
 }
@@ -83,7 +83,7 @@ void HttpsJob::read_while_data_available(Function<IterationDecision()> read)
 
 void HttpsJob::register_on_ready_to_read(Function<void()> callback)
 {
-    m_socket->on_tls_ready_to_read = [callback = move(callback)](auto&) {
+    m_socket->on_ready_to_read = [callback = move(callback)] {
         callback();
     };
 }
@@ -119,7 +119,7 @@ bool HttpsJob::can_read() const
 
 bool HttpsJob::eof() const
 {
-    return m_socket->eof();
+    return m_socket->unreliable_eof();
 }
 
 bool HttpsJob::write(ReadonlyBytes data)
