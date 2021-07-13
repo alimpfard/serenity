@@ -5,6 +5,8 @@ SCRIPT="$(dirname "${0}")"
 export SERENITY_ARCH="${SERENITY_ARCH:-i686}"
 
 HOST_CC="${CC:=cc}"
+HOST_CPP="${CPP:=cpp}"
+HOST_CXXCPP="${CXXCPP:=cpp}"
 HOST_CXX="${CXX:=c++}"
 HOST_AR="${AR:=ar}"
 HOST_RANLIB="${RANLIB:=ranlib}"
@@ -40,6 +42,8 @@ target_env
 
 host_env() {
     export CC="${HOST_CC}"
+    export CPP="${HOST_CPP}"
+    export CXXCPP="${HOST_CXXCPP}"
     export CXX="${HOST_CXX}"
     export AR="${HOST_AR}"
     export RANLIB="${HOST_RANLIB}"
@@ -54,6 +58,11 @@ packagesdb="${DESTDIR}/usr/Ports/packages.db"
 
 . "$@"
 shift
+
+_make="$(which make)"
+make() {
+    "$_make" "CFLAGS=$CFLAGS" $@
+}
 
 : "${makeopts:=-j$(nproc)}"
 : "${installopts:=}"
