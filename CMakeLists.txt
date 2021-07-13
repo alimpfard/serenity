@@ -25,7 +25,7 @@ set(SERENITY_ARCH "i686" CACHE STRING "Target architecture for SerenityOS.")
 if("${SERENITY_ARCH}" STREQUAL "i686")
     set(SERENITY_CLANG_ARCH "i386")
 else()
-    set(SERENITY_CLANG_ARCH ${SERENITY_ARCH})
+    set(SERENITY_CLANG_ARCH SERENITY_ARCH)
 endif()
 
 # Central location for all custom options used in the Serenity build.
@@ -321,15 +321,19 @@ option(BUILD_EVERYTHING "Build all optional components" ON)
 
 include(${CMAKE_SOURCE_DIR}/Meta/CMake/utils.cmake)
 
-serenity_component(
-    Tests
-    RECOMMENDED
-)
 
 add_subdirectory(AK)
 add_subdirectory(Kernel)
 add_subdirectory(Userland)
-add_subdirectory(Tests)
+
+# FIXME: Make tests link using Clang
+if(NOT USE_CLANG_TOOLCHAIN)
+    serenity_component(
+        Tests
+        RECOMMENDED
+    )
+    add_subdirectory(Tests)
+endif()
 
 export_components("${CMAKE_BINARY_DIR}/components.ini")
 
