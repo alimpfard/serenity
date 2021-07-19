@@ -1,0 +1,87 @@
+From d5606d82876933d0d4e2363ed24abc2c8b911d6f Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 16:28:11 +0430
+Subject: [PATCH 03/33] coro
+
+---
+ coroutine.c | 16 +++++++++++++++-
+ 1 file changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/coroutine.c b/coroutine.c
+index 4f56c80..47e8ace 100644
+--- a/coroutine.c
++++ b/coroutine.c
+@@ -8,8 +8,10 @@
+ 
+ #if __APPLE__ && __MACH__
+ #include <sys/ucontext.h>
+-#else
++#define HAS_UCONTEXT
++#elif __has_include(<ucontext.h>)
+ #include <ucontext.h>
++#define HAS_UCONTEXT
+ #endif
+ 
+ #define STACK_SIZE (1024 * 1024)
+@@ -19,7 +21,9 @@ struct coroutine;
+ 
+ struct schedule {
+   char stack[STACK_SIZE];
++#ifdef HAS_UCONTEXT
+   ucontext_t main;
++#endif
+   int nco;
+   int cap;
+   int running;
+@@ -29,7 +33,9 @@ struct schedule {
+ struct coroutine {
+   coroutine_func func;
+   void *ud;
++#ifdef HAS_UCONTEXT
+   ucontext_t ctx;
++#endif
+   struct schedule *sch;
+   ptrdiff_t cap;
+   ptrdiff_t size;
+@@ -123,22 +129,28 @@ void coroutine_resume(struct schedule *S, int id) {
+   int status = C->status;
+   switch (status) {
+   case COROUTINE_READY:
++#ifdef HAS_UCONTEXT
+     getcontext(&C->ctx);
+     C->ctx.uc_stack.ss_sp = S->stack;
+     C->ctx.uc_stack.ss_size = STACK_SIZE;
+     C->ctx.uc_link = &S->main;
++#endif
+     S->running = id;
+     C->status = COROUTINE_RUNNING;
++#ifdef HAS_UCONTEXT
+     uintptr_t ptr = (uintptr_t)S;
+     makecontext(&C->ctx, (void (*)(void))mainfunc, 2, (uint32_t)ptr,
+                 (uint32_t)(ptr >> 32));
+     swapcontext(&S->main, &C->ctx);
++#endif
+     break;
+   case COROUTINE_SUSPEND:
+     memcpy(S->stack + STACK_SIZE - C->size, C->stack, C->size);
+     S->running = id;
+     C->status = COROUTINE_RUNNING;
++#ifdef HAS_UCONTEXT
+     swapcontext(&S->main, &C->ctx);
++#endif
+     break;
+   default:
+     assert(0);
+@@ -165,7 +177,9 @@ void coroutine_yield(struct schedule *S) {
+   _save_stack(C, S->stack + STACK_SIZE);
+   C->status = COROUTINE_SUSPEND;
+   S->running = -1;
++#ifdef HAS_UCONTEXT
+   swapcontext(&C->ctx, &S->main);
++#endif
+ }
+ 
+ int coroutine_status(struct schedule *S, int id) {
+-- 
+2.32.0
+

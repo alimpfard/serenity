@@ -1,0 +1,27 @@
+From dd7546cc9e7b7512bd3cbc687850a527086d5411 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 16:37:37 +0430
+Subject: [PATCH 08/33] remove forLinux
+
+---
+ system.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/system.c b/system.c
+index f6b8296..ba51a4b 100644
+--- a/system.c
++++ b/system.c
+@@ -35,6 +35,10 @@ static struct termios oldTermios, newTermios;
+ 
+ #include "compcompat_pthread.h"
+ 
++#ifdef __serenity__
++#undef forLinux
++#endif
++
+ #if defined(forLinux) && !defined(__serenity__)
+ #include <bsd/stdlib.h>
+ 
+-- 
+2.32.0
+

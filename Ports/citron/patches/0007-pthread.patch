@@ -1,0 +1,29 @@
+From d01b968684d38f0ea6074868c3b848c87bc9ed49 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 16:36:07 +0430
+Subject: [PATCH 07/33] pthread
+
+---
+ system.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/system.c b/system.c
+index 242747e..f6b8296 100644
+--- a/system.c
++++ b/system.c
+@@ -3182,7 +3182,11 @@ ctr_object *ctr_thread_join(ctr_object *myself, ctr_argument *argumentList) {
+     return CtrStdNil;
+   }
+   // printf("CONTEXT %p - %d\n", ctr_contexts, ctr_context_id);
+-  if (retval == PTHREAD_CANCELED || !retval) {
++  if (
++#ifdef PTHREAD_CANCEL
++          retval == PTHREAD_CANCELED ||
++#endif
++          !retval) {
+     ctr_heap_free(retval);
+     return CtrStdNil;
+   } else {
+-- 
+2.32.0
+

@@ -1,0 +1,57 @@
+From 4dfa1b552e0b80b56bf812374181bc43d9becaa8 Mon Sep 17 00:00:00 2001
+From: Ali Mohammad Pur <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 15:24:27 +0430
+Subject: [PATCH 1/4] teach gcconfig about serenity
+
+---
+ include/private/gcconfig.h | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/include/private/gcconfig.h b/include/private/gcconfig.h
+index 348255d..b868053 100644
+--- a/include/private/gcconfig.h
++++ b/include/private/gcconfig.h
+@@ -351,6 +351,11 @@ EXTERN_C_BEGIN
+ #    define HAIKU
+ #    define mach_type_known
+ # endif
++# if defined(__serenity__) && defined(__i386__)
++#    define I386
++#    define SERENITY
++#    define mach_type_known
++# endif
+ # if defined(OPENBSD) && defined(__amd64__)
+ #    define X86_64
+ #    define mach_type_known
+@@ -1384,6 +1389,11 @@ EXTERN_C_BEGIN
+ #     define DYNAMIC_LOADING
+ #     define MPROTECT_VDB
+ #   endif
++#   ifdef SERENITY
++#     define OS_TYPE "SERENITY"
++#     define GETPAGESIZE() (unsigned)sysconf(_SC_PAGE_SIZE)
++#     define DYNAMIC_LOADING
++#   endif
+ #   ifdef SOLARIS
+ #       define OS_TYPE "SOLARIS"
+         extern int _etext[], _end[];
+@@ -3052,7 +3062,7 @@ EXTERN_C_BEGIN
+ #if defined(SVR4) || defined(LINUX) || defined(IRIX5) || defined(HPUX) \
+     || defined(OPENBSD) || defined(NETBSD) || defined(FREEBSD) \
+     || defined(DGUX) || defined(BSD) || defined(HAIKU) || defined(HURD) \
+-    || defined(AIX) || defined(DARWIN) || defined(OSF1)
++    || defined(AIX) || defined(DARWIN) || defined(OSF1) || defined(SERENITY)
+ # define UNIX_LIKE      /* Basic Unix-like system calls work.   */
+ #endif
+ 
+@@ -3180,6 +3190,7 @@ EXTERN_C_BEGIN
+ #if ((defined(UNIX_LIKE) && (defined(DARWIN) || defined(HAIKU) \
+                              || defined(HURD) || defined(OPENBSD) \
+                              || defined(ARM32) \
++                             || defined(SERENITY) \
+                              || defined(AVR32) || defined(MIPS) \
+                              || defined(NIOS2) || defined(OR1K))) \
+      || (defined(LINUX) && !defined(__gnu_linux__)) \
+-- 
+2.32.0
+

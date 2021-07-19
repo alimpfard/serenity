@@ -1,0 +1,24 @@
+From 0f51c4c52014247bb30c1b6f03080f8bd4ad38fd Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 16:56:15 +0430
+Subject: [PATCH 16/33] symbol 3
+
+---
+ symbol.hpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/symbol.hpp b/symbol.hpp
+index 658eb42..d3866be 100644
+--- a/symbol.hpp
++++ b/symbol.hpp
+@@ -1,6 +1,7 @@
+ #pragma once
+ 
+ #include "citron.h"
++#include <string>
+ #ifndef __serenity__
+ #include <google/dense_hash_map>
+ 
+-- 
+2.32.0
+

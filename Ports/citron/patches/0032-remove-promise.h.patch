@@ -1,0 +1,27 @@
+From 972581300af06d3f5537906ab588b139214fe6ff Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 19:19:21 +0430
+Subject: [PATCH 32/33] remove promise.h
+
+---
+ promise.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/promise.h b/promise.h
+index e0b7af9..226cc11 100644
+--- a/promise.h
++++ b/promise.h
+@@ -2,8 +2,10 @@
+ #define CTR_PROMISE_H
+ #include "citron.h"
+ #include <pthread.h>
++#ifndef __serenity__
+ #define GC_THREAD
+ #include <gc/gc.h>
++#endif
+ 
+ #define CTR_PROMISE_CALL 0
+ #define CTR_PROMISE_MESSAGE 1
+-- 
+2.32.0
+

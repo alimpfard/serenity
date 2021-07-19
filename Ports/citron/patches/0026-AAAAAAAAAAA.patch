@@ -1,0 +1,42 @@
+From 0cdee880072ffe819bf0a78e3eef0064bea2b2eb Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 17:45:35 +0430
+Subject: [PATCH 26/33] AAAAAAAAAAA
+
+---
+ autohell/scripts/Makefile.am | 22 +++++++++++-----------
+ 1 file changed, 11 insertions(+), 11 deletions(-)
+
+diff --git a/autohell/scripts/Makefile.am b/autohell/scripts/Makefile.am
+index 2a39dd2..86b2a2c 100644
+--- a/autohell/scripts/Makefile.am
++++ b/autohell/scripts/Makefile.am
+@@ -1,14 +1,14 @@
+-extensiondir = $(datadir)/@PACKAGE@/extensions
++extensiondir = ${datadir}/@PACKAGE@/extensions
+ extension_DATA = *.ctr
+ bin_SCRIPTS = citron ctrc
+ install-data-local:
+-	rm -rf $(datadir)/@PACKAGE@/Library
+-	rm -rf $(datadir)/@PACKAGE@/mods
+-	rm -rf $(datadir)/@PACKAGE@/basemods
+-	rm -rf $(datadir)/@PACKAGE@/tcc
+-	mkdir -p $(datadir)/@PACKAGE@/mods/
+-	cp -Lrf mods/* $(datadir)/@PACKAGE@/mods/
+-	ls -alh $(datadir)/@PACKAGE@/mods/ mods
+-	cp -Lrf Library $(datadir)/@PACKAGE@/
+-	cp -Lrf basemods $(datadir)/@PACKAGE@/ || true
+-	cp -Lrf tcc $(datadir)/@PACKAGE@/
++	rm -rf ${datadir}/@PACKAGE@/Library
++	rm -rf ${datadir}/@PACKAGE@/mods
++	rm -rf ${datadir}/@PACKAGE@/basemods
++	rm -rf ${datadir}/@PACKAGE@/tcc
++	mkdir -p ${datadir}/@PACKAGE@/mods/
++	cp -Lrf mods/* ${datadir}/@PACKAGE@/mods/
++	ls -alh ${datadir}/@PACKAGE@/mods/ mods
++	cp -Lrf Library ${datadir}/@PACKAGE@/
++	cp -Lrf basemods ${datadir}/@PACKAGE@/ || true
++	cp -Lrf tcc ${datadir}/@PACKAGE@/
+-- 
+2.32.0
+

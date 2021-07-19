@@ -1,0 +1,32 @@
+From 5bae3b4ba0e3d56bcd613dd95459b30acc3a3d50 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 17:00:56 +0430
+Subject: [PATCH 18/33] remove pcre
+
+---
+ autohell/src/Makefile.am | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/autohell/src/Makefile.am b/autohell/src/Makefile.am
+index 588d1c8..166b999 100644
+--- a/autohell/src/Makefile.am
++++ b/autohell/src/Makefile.am
+@@ -1,5 +1,5 @@
+ AM_CFLAGS = --pedantic -O3 -Wall -fPIC -mtune=native -D withTermios -D forLinux -DCTR_STD_EXTENSION_PATH=\"$(STD_PATH)\" -D WITH_AUTOMAKE=\"$(pkgdatadir)\" $(MAYBE_ASM_C)
+-AM_LDFLAGS = -lm -ldl -lpcre -lpthread $(MAYBE_FFI_L) $(MAYBE_TCC_L) $(MAYBE_ASM_L) $(MAYBE_SOCKET_L) -o ctr
++AM_LDFLAGS = -lm -ldl -lpthread $(MAYBE_FFI_L) $(MAYBE_TCC_L) $(MAYBE_ASM_L) $(MAYBE_SOCKET_L) -o ctr
+ 
+ SUBDIRS = $(MAYBE_TCC) $(MAYBE_SOCKET)
+ 
+@@ -26,7 +26,7 @@ pkginclude_HEADERS = *.h
+ 
+ lib_LTLIBRARIES = libcitron.la
+ libcitron_la_CFLAGS= -DLIBRARY_BUILD $(AM_CFLAGS)
+-libcitron_la_LDFLAGS= -rdynamic -lm -ldl -lbsd -lpcre -lpthread $(MAYBE_FFI_L) $(MAYBE_TCC_L) $(MAYBE_ASM_L) -o ctr
++libcitron_la_LDFLAGS= -lm -ldl -lpthread $(MAYBE_FFI_L) $(MAYBE_TCC_L) $(MAYBE_ASM_L) -o ctr
+ libcitron_la_CXXFLAGS= $(AM_CXXFLAGS)
+ 
+ libcitron_la_SOURCES = citron.c base.c world.c importlib.c fiber.c reflect.c\
+-- 
+2.32.0
+

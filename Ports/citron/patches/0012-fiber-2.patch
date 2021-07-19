@@ -1,0 +1,27 @@
+From fc7a6d096ab08e9af9b73fb16a85eb18b5f3ce48 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 16:47:10 +0430
+Subject: [PATCH 12/33] fiber 2
+
+---
+ fiber.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/fiber.c b/fiber.c
+index 4f8f3de..0c3ee30 100644
+--- a/fiber.c
++++ b/fiber.c
+@@ -78,8 +78,10 @@ static int inFiber = 0;
+ // The number of active fibers
+ static int numFibers = 0;
+ 
++#ifndef __serenity__
+ // The "main" execution context
+ static ucontext_t mainContext;
++#endif
+ 
+ // Sets all the fibers to be initially inactive
+ void initFibers() {
+-- 
+2.32.0
+

@@ -1,0 +1,30 @@
+From bdc0e5592d824096294fc620485bfeee13900cc4 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 17:21:01 +0430
+Subject: [PATCH 22/33] strtok
+
+---
+ base_extensions.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/base_extensions.c b/base_extensions.c
+index 6b054a0..d55c99b 100644
+--- a/base_extensions.c
++++ b/base_extensions.c
+@@ -811,11 +811,11 @@ char **str_split(char *a_str, const char a_delim, int *count_out) {
+   result = malloc(sizeof(char *) * count);
+   if (result) {
+     size_t idx = 0;
+-    char *token = strsep(&a_str, delim);
++    char *token = strtok(&a_str, delim);
+     while (token) {
+       // assert(idx < count);
+       *(result + idx++) = strdup(token);
+-      token = strsep(&a_str, delim);
++      token = strtok(NULL, delim);
+     }
+     // assert(idx == count - 1);
+     *(result + idx) = 0;
+-- 
+2.32.0
+

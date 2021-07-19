@@ -1,0 +1,133 @@
+From 644b2cbc05fb144aa8c44eb74836a985791d19a6 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 16:43:52 +0430
+Subject: [PATCH 10/33] fiber
+
+---
+ fiber.c | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/fiber.c b/fiber.c
+index 184fd16..4f8f3de 100644
+--- a/fiber.c
++++ b/fiber.c
+@@ -49,14 +49,17 @@ extern int waitForAllFibers();
+ #endif
+ /* <HEADER */
+ 
++#ifndef __serenity__
+ #include <malloc.h>
+ #include <ucontext.h>
++#endif
+ 
+ ctr_object *FIBER_YIELDED = NULL; // to pass values around
+ 
+ /* The Fiber Structure
+  *  Contains the information about individual fibers.
+  */
++#ifndef __serenity__
+ typedef struct {
+   ucontext_t context; // Stores the current context
+   struct ctr_context_t ctr_context;
+@@ -65,6 +68,7 @@ typedef struct {
+ 
+ // The fiber "queue"
+ fiber fiberList[MAX_FIBERS];
++#endif
+ 
+ // The index of the currently executing fiber
+ static int currentFiber = -1;
+@@ -79,16 +83,19 @@ static ucontext_t mainContext;
+ 
+ // Sets all the fibers to be initially inactive
+ void initFibers() {
++#ifndef __serenity__
+   int i;
+   for (i = 0; i < MAX_FIBERS; ++i) {
+     fiberList[i].active = 0;
+   }
+ 
+   return;
++#endif
+ }
+ 
+ // Switches from a fiber to main or from main to a fiber
+ void fiberYield() {
++#ifndef __serenity__
+   // If we are in a fiber, switch to the main process
+   if (inFiber) {
+     // Switch to the main context
+@@ -127,6 +134,7 @@ void fiberYield() {
+       fiberList[numFibers].active = 0;
+     }
+   }
++#endif
+   return;
+ }
+ 
+@@ -134,15 +142,18 @@ void fiberYield() {
+ // so that we know when to free its resources. It is called in the fiber's
+ // context of execution.
+ static void fiberStart(ctr_object *block) {
++#ifndef __serenity__
+   fiberList[currentFiber].active = 1;
+   ctr_block_run_here(block, NULL, block);
+   fiberList[currentFiber].active = 0;
+ 
+   // Yield control, but because active == 0, this will free the fiber
+   fiberYield();
++#endif
+ }
+ 
+ int spawnFiber(ctr_object *block) {
++#ifndef __serenity__
+   if (numFibers == MAX_FIBERS)
+     return LF_MAXFIBERS;
+ 
+@@ -167,9 +178,13 @@ int spawnFiber(ctr_object *block) {
+   ++numFibers;
+ 
+   return LF_NOERROR;
++#else
++  return LF_CLONEERROR;
++#endif
+ }
+ 
+ int waitForAllFibers() {
++#ifndef __serenity__
+   int fibersRemaining = 0;
+ 
+   // If we are in a fiber, wait for all the *other* fibers to quit
+@@ -183,10 +198,12 @@ int waitForAllFibers() {
+   while (numFibers > fibersRemaining)
+     fiberYield();
+ 
++#endif
+   return LF_NOERROR;
+ }
+ 
+ int waitForFiber(int id) {
++#ifndef __serenity__
+   int fibersRemaining = id;
+ 
+   // If we are in a fiber, wait for all the *other* fibers to quit
+@@ -200,13 +217,16 @@ int waitForFiber(int id) {
+   while (numFibers > fibersRemaining)
+     fiberYield();
+ 
++#endif
+   return LF_NOERROR;
+ }
+ 
+ int yieldNTimes(int n) {
++#ifndef __serenity__
+   while (--n != 0) {
+     fiberYield();
+   }
++#endif
+   return LF_NOERROR;
+ }
+ 
+-- 
+2.32.0
+

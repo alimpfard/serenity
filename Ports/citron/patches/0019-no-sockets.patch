@@ -1,0 +1,36 @@
+From 09b072fdecdefc5375855869e01c1e17cb91b73b Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 17:07:35 +0430
+Subject: [PATCH 19/33] no sockets
+
+---
+ autohell/configure.ac | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/autohell/configure.ac b/autohell/configure.ac
+index 423383d..66a72a9 100644
+--- a/autohell/configure.ac
++++ b/autohell/configure.ac
+@@ -54,8 +54,8 @@ AC_CHECK_FUNCS([atexit bzero dup2 floor getdelim gethostbyname gettimeofday isas
+ 
+ AC_ARG_WITH([sockets],
+             AS_HELP_STRING([--with-sockets], [Build with socket support]),
+-            [],
+-            [want_sockets=no])
++            [want_sockets=yes],
++            [])
+ AC_ARG_WITH([boehm-gc],
+               AS_HELP_STRING([--with-boehm-gc], [Build without libgc present]),
+               [],
+@@ -103,7 +103,7 @@ AS_IF([test "x$want_inject" = "xyes"], [
+     ])
+ AC_MSG_RESULT($want_inject)
+ AC_MSG_CHECKING(sockets)
+-AS_IF([test "x$want_sockets" != "xno"], [
++AS_IF([test "x$want_sockets" = "xyes"], [
+        CFLAGS+=" -DwithSockets=1"
+        CTR_MAYBE_SOCKET="libsocket"
+        MAYBE_SOCKET_L="$BUILD_DIR_L/libsocket.so"
+-- 
+2.32.0
+

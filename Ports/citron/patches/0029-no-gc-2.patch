@@ -1,0 +1,26 @@
+From 125605aac2004107e367ad9677c40c09b82a6e4f Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 18:30:19 +0430
+Subject: [PATCH 29/33] no gc 2
+
+---
+ citron.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/citron.c b/citron.c
+index 0f651f5..88c05d6 100644
+--- a/citron.c
++++ b/citron.c
+@@ -195,7 +195,9 @@ void ctr_initialize_ex() {
+ 
+   ctr_gc_mode = 1; /* default GC mode: activate GC */
+   ctr_gc_memlimit = ctr_gc_memlimit_ex;
++#ifndef __serenity__
+   GC_set_max_heap_size(ctr_gc_memlimit);
++#endif
+   CTR_LIMIT_MEM = 1; // enfore GC
+   ctr_callstack_index = 0;
+   ctr_source_map_head = NULL;
+-- 
+2.32.0
+

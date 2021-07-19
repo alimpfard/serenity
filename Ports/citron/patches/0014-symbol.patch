@@ -1,0 +1,78 @@
+From 79819abeffa0a1aa36e315d6e31d36a1c2f097d6 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 16:52:04 +0430
+Subject: [PATCH 14/33] symbol
+
+---
+ symbol.hpp     |  4 +++-
+ symbol_cxx.cpp | 11 +++++++++++
+ 2 files changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/symbol.hpp b/symbol.hpp
+index fd8e577..890308a 100644
+--- a/symbol.hpp
++++ b/symbol.hpp
+@@ -1,11 +1,13 @@
+ #pragma once
+ 
+ #include "citron.h"
++#ifndef __serenity
+ #include <google/dense_hash_map>
+-#include <functional>
+ 
+ using google::dense_hash_map;
+ using std::hash;
++#endif
++#include <functional>
+ 
+ extern "C" ctr_object *ctr_get_or_create_symbol_table_entry (const char *name, ctr_size length);
+ extern "C" ctr_object *ctr_create_symbol(const char* s, ctr_size length);
+diff --git a/symbol_cxx.cpp b/symbol_cxx.cpp
+index 8350089..bf9fc8e 100644
+--- a/symbol_cxx.cpp
++++ b/symbol_cxx.cpp
+@@ -1,6 +1,9 @@
+ #include "symbol.hpp"
+ #include <map>
+ #include <iostream>
++#ifdef __serenity__
++#include <map>
++#endif
+ 
+ struct eqstr
+ {
+@@ -18,7 +21,11 @@ struct lessstr
+     }
+ };
+ 
++#ifndef __serenity__
+ static google::dense_hash_map<std::string, ctr_object, std::hash<std::string>, eqstr> symbols;
++#else
++static std::map<std::string, ctr_object, std::hash<std::string>, eqstr> symbols;
++#endif
+ static int initialized = 0;
+ 
+ static std::map<std::string, fixity_ind, lessstr> fixity_map;
+@@ -42,7 +49,9 @@ inline ctr_object* get_or_create(const char* name, ctr_size length) {
+ extern "C"
+ ctr_object* ctr_get_or_create_symbol_table_entry_s (const char* name, ctr_size length) {
+     if(!initialized) {
++#ifndef __serenity__
+         symbols.set_empty_key("");
++#endif
+         initialized = 1;
+     }
+     ctr_object* s = get_or_create(name, length);
+@@ -52,7 +61,9 @@ ctr_object* ctr_get_or_create_symbol_table_entry_s (const char* name, ctr_size l
+ extern "C"
+ ctr_object *ctr_get_or_create_symbol_table_entry (const char *name, ctr_size length) {
+     if(!initialized) {
++#ifndef __serenity__
+         symbols.set_empty_key("");
++#endif
+         initialized = 1;
+     }
+     ctr_object* s = get_or_create(name, length);
+-- 
+2.32.0
+

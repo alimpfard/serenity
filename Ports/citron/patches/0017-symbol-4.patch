@@ -1,0 +1,25 @@
+From cb0791e30a14e6c50459e3ebb0ecbd3e01da35c1 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 16:58:43 +0430
+Subject: [PATCH 17/33] symbol 4
+
+---
+ symbol_cxx.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/symbol_cxx.cpp b/symbol_cxx.cpp
+index bf9fc8e..33e3180 100644
+--- a/symbol_cxx.cpp
++++ b/symbol_cxx.cpp
+@@ -24,7 +24,7 @@ struct lessstr
+ #ifndef __serenity__
+ static google::dense_hash_map<std::string, ctr_object, std::hash<std::string>, eqstr> symbols;
+ #else
+-static std::map<std::string, ctr_object, std::hash<std::string>, eqstr> symbols;
++static std::map<std::string, ctr_object, lessstr> symbols;
+ #endif
+ static int initialized = 0;
+ 
+-- 
+2.32.0
+

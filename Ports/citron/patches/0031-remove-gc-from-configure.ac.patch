@@ -1,0 +1,31 @@
+From 28c7627cf88b26d015eadd69b0221a6ab1546a70 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 19:16:12 +0430
+Subject: [PATCH 31/33] remove gc from configure.ac
+
+---
+ autohell/configure.ac | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/autohell/configure.ac b/autohell/configure.ac
+index c476036..1052d03 100644
+--- a/autohell/configure.ac
++++ b/autohell/configure.ac
+@@ -56,10 +56,10 @@ AC_ARG_WITH([sockets],
+             AS_HELP_STRING([--with-sockets], [Build with socket support]),
+             [want_sockets=yes],
+             [])
+-AC_ARG_WITH([boehm-gc],
+-              AS_HELP_STRING([--with-boehm-gc], [Build without libgc present]),
+-              [],
+-              [enable_boehm_gc=yes])
++#AC_ARG_WITH([boehm-gc],
++#              AS_HELP_STRING([--with-boehm-gc], [Build without libgc present]),
++#              [],
++#              [enable_boehm_gc=yes])
+ AC_ARG_WITH([inject],
+               AS_HELP_STRING([--with-inject], [Build with the Inject object]),
+               [want_inject=yes],
+-- 
+2.32.0
+

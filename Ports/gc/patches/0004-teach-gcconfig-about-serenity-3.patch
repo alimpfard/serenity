@@ -1,0 +1,26 @@
+From 92dbb72e63d28ab993fb0dfd5680559ca45a8f37 Mon Sep 17 00:00:00 2001
+From: Ali Mohammad Pur <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 15:32:27 +0430
+Subject: [PATCH 4/4] teach gcconfig about serenity 3
+
+---
+ include/private/gcconfig.h | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/include/private/gcconfig.h b/include/private/gcconfig.h
+index 75d6db5..f47577f 100644
+--- a/include/private/gcconfig.h
++++ b/include/private/gcconfig.h
+@@ -1395,8 +1395,9 @@ EXTERN_C_BEGIN
+ #     define DYNAMIC_LOADING
+       extern int etext[];
+ #     define DATASTART ((ptr_t)(etext))
+       extern int _end[];
+ #     define DATAEND ((ptr_t)(_end))
++#     define HEURISTIC1
+ #   endif
+ #   ifdef SOLARIS
+ #       define OS_TYPE "SOLARIS"
+-- 
+2.32.0
+

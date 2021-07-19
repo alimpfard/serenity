@@ -1,0 +1,24 @@
+From 1281dabd0c41c0f748053cffe7496ee202db5428 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 17:49:27 +0430
+Subject: [PATCH 27/33] AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+
+---
+ autohell/scripts/Makefile.am | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/autohell/scripts/Makefile.am b/autohell/scripts/Makefile.am
+index 86b2a2c..7fbb407 100644
+--- a/autohell/scripts/Makefile.am
++++ b/autohell/scripts/Makefile.am
+@@ -2,6 +2,7 @@ extensiondir = ${datadir}/@PACKAGE@/extensions
+ extension_DATA = *.ctr
+ bin_SCRIPTS = citron ctrc
+ install-data-local:
++	echo ${datadir}
+ 	rm -rf ${datadir}/@PACKAGE@/Library
+ 	rm -rf ${datadir}/@PACKAGE@/mods
+ 	rm -rf ${datadir}/@PACKAGE@/basemods
+-- 
+2.32.0
+

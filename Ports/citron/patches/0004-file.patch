@@ -1,0 +1,64 @@
+From 4a367bfc4e5f7722fe5b893d7dec6a81ecdefead Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 16:29:29 +0430
+Subject: [PATCH 04/33] file
+
+---
+ file.c | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/file.c b/file.c
+index 1cf2a68..f4d1f77 100644
+--- a/file.c
++++ b/file.c
+@@ -552,12 +552,12 @@ ctr_object *ctr_file_expand(ctr_object *myself, ctr_argument *argumentList) {
+     CtrStdFlow = ctr_build_string_from_cstring(err);
+     return CtrStdNil;
+   }
++  return arr;
+ #else
+     CtrStdFlow = ctr_format_str(
+         "EWordexp is not available");
+     return CtrStdNil;
+ #endif
+-  return arr;
+ }
+ 
+ /**
+@@ -1166,6 +1166,7 @@ ctr_object *ctr_file_seek_end(ctr_object *myself, ctr_argument *argumentList) {
+ 
+ ctr_object *ctr_file_lock_generic(ctr_object *myself,
+                                   ctr_argument *argumentList, int lock) {
++#ifndef __serenity
+   int b;
+   int fd;
+   char *path;
+@@ -1199,14 +1200,25 @@ ctr_object *ctr_file_lock_generic(ctr_object *myself,
+   }
+   ctr_heap_free(path);
+   return answer;
++#else
++  return CtrStdNil;
++#endif
+ }
+ 
+ ctr_object *ctr_file_unlock(ctr_object *myself, ctr_argument *argumentList) {
++#ifndef __serenity__
+   return ctr_file_lock_generic(myself, argumentList, LOCK_UN | LOCK_NB);
++#else
++  return CtrStdNil;
++#endif
+ }
+ 
+ ctr_object *ctr_file_lock(ctr_object *myself, ctr_argument *argumentList) {
++#ifndef __serenity__
+   return ctr_file_lock_generic(myself, argumentList, LOCK_EX | LOCK_NB);
++#else
++  return CtrStdNil;
++#endif
+ }
+ 
+ ctr_object *ctr_file_list(ctr_object *myself, ctr_argument *argumentList) {
+-- 
+2.32.0
+

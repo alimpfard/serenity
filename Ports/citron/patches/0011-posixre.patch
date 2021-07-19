@@ -1,0 +1,27 @@
+From 5082f49e8433ace3902fe5618a88409b908783b9 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 16:45:32 +0430
+Subject: [PATCH 11/33] posixre
+
+---
+ base.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/base.c b/base.c
+index e0d53a4..a2348bd 100644
+--- a/base.c
++++ b/base.c
+@@ -8,6 +8,10 @@
+ #include <time.h>
+ #include <unistd.h>
+ 
++#ifdef __serenity__
++#define POSIXRE
++#endif
++
+ #ifdef POSIXRE
+ #include <regex.h>
+ #else
+-- 
+2.32.0
+

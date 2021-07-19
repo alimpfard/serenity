@@ -1,0 +1,34 @@
+From 4900d27018187dd9d6b4a708154b38e315f354b8 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 17:21:10 +0430
+Subject: [PATCH 23/33] memopen
+
+---
+ file.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/file.c b/file.c
+index 90fdfd1..f429acb 100644
+--- a/file.c
++++ b/file.c
+@@ -113,6 +113,7 @@ ctr_object *ctr_file_get_descriptor(ctr_object *myself,
+  */
+ ctr_object *ctr_file_memopen(ctr_object *myself, ctr_argument *argumentList) {
+   ctr_check_permission(CTR_SECPRO_NO_FILE_READ);
++#ifndef __serenity__
+   char *mode = ctr_heap_allocate_cstring(
+       ctr_internal_cast2string(argumentList->next->object));
+   ctr_string *str = argumentList->object->value.svalue;
+@@ -126,6 +127,9 @@ ctr_object *ctr_file_memopen(ctr_object *myself, ctr_argument *argumentList) {
+   rs->ptr = handle;
+   s->value.rvalue = rs;
+   return s;
++#else
++  return CtrStdNil;
++#endif
+ }
+ 
+ /**
+-- 
+2.32.0
+

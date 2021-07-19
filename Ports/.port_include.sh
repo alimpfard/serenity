@@ -86,6 +86,11 @@ run_replace_in_file() {
     run perl -p -i -e "$1" $2
 }
 
+get_up_to_date_config_sub() {
+    local path=${1:-config.sub}
+    run wget -O $path 'https://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub'
+}
+
 ensure_build() {
     # Sanity check.
     if [ ! -f "${DESTDIR}/usr/lib/libc.so" ]; then
@@ -345,6 +350,9 @@ func_defined post_configure || post_configure() {
 func_defined build || build() {
     run make $makeopts
 }
+func_defined pre_install || pre_install() {
+    return
+}
 func_defined install || install() {
     run make DESTDIR=$DESTDIR $installopts install
 }
@@ -458,6 +466,7 @@ do_build() {
 do_install() {
     ensure_build
     echo "Installing $port!"
+    pre_install
     install
     install_main_launcher
     install_main_icon

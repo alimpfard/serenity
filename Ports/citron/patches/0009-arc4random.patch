@@ -1,0 +1,25 @@
+From 0e656ea211a47beb9ddabd2b4319756bd11d4d47 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 16:39:23 +0430
+Subject: [PATCH 09/33] arc4random
+
+---
+ system.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/system.c b/system.c
+index ba51a4b..7191355 100644
+--- a/system.c
++++ b/system.c
+@@ -42,7 +42,7 @@ static struct termios oldTermios, newTermios;
+ #if defined(forLinux) && !defined(__serenity__)
+ #include <bsd/stdlib.h>
+ 
+-#else
++#elif !defined(__serenity__)
+ // Arc4random
+ 
+ #include <fcntl.h>
+-- 
+2.32.0
+

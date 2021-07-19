@@ -1,0 +1,26 @@
+From 75d53de5128c95bd015d964fa76d2cfe55a5880e Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 16:34:30 +0430
+Subject: [PATCH 06/33] ucontext
+
+---
+ base_extensions.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/base_extensions.c b/base_extensions.c
+index 40043f6..6b054a0 100644
+--- a/base_extensions.c
++++ b/base_extensions.c
+@@ -6,7 +6,9 @@
+ #include <stdio.h>
+ #include <sys/stat.h>
+ #include <sys/types.h>
++#ifndef __serenity__
+ #define WITH_UCONTEXT
++#endif
+ #ifdef WITH_UCONTEXT
+ #include <ucontext.h>
+ #else
+-- 
+2.32.0
+

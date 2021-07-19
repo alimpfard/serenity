@@ -1,0 +1,42 @@
+From 7951d987cddbb9f26107ac4483908988609fd748 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 16:48:38 +0430
+Subject: [PATCH 13/33] memory-ngc
+
+---
+ memory-ngc.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/memory-ngc.h b/memory-ngc.h
+index 6570231..f79d973 100644
+--- a/memory-ngc.h
++++ b/memory-ngc.h
+@@ -6,7 +6,9 @@
+ #include <math.h>
+ #include <stdint.h>
+ #include <sys/mman.h>
++#ifndef __serenity__
+ #include <execinfo.h>
++#endif
+ #include "citron.h"
+ #include <gc/gc.h>
+ #include <gc/gc_typed.h>
+@@ -46,6 +48,7 @@ size_t maxNumberOfMemBlocks = 0;
+ 
+ void sttrace_print(void *ptr)
+ {
++#ifndef __serenity__
+ 	if (likely(ptr))
+ 		return;
+ 	printf("MEMORY ALLOC %p\n", ptr);
+@@ -61,6 +64,7 @@ void sttrace_print(void *ptr)
+ 		printf("%s\n", strings[i]);
+ 
+ 	free(strings);
++#endif
+ }
+ 
+ /**
+-- 
+2.32.0
+

@@ -1,0 +1,32 @@
+From 8dcd6b050fe468c98c32531c2cbe94d3ef01efe2 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 19:30:34 +0430
+Subject: [PATCH 33/33] allocate all you want
+
+---
+ memory-ngc.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/memory-ngc.h b/memory-ngc.h
+index b66bca2..ec3dab7 100644
+--- a/memory-ngc.h
++++ b/memory-ngc.h
+@@ -121,7 +121,6 @@ void *ctr_heap_allocate(size_t size)
+ 	/* Check whether we can afford to allocate this much */
+ #ifndef __serenity__
+ 	ctr_gc_alloc = GC_get_heap_size() - GC_get_free_bytes() - GC_get_unmapped_bytes();
+-#endif
+ 
+ 	if (ctr_gc_memlimit < ctr_gc_alloc) {
+ 		ctr_gc_sweep(0);
+@@ -138,6 +137,7 @@ void *ctr_heap_allocate(size_t size)
+ 			}
+ 		}
+ 	}
++#endif
+ 
+ 	/* Perform allocation and check result */
+ 	slice_of_memory = calloc(size, 1);
+-- 
+2.32.0
+

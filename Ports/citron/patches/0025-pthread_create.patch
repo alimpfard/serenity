@@ -1,0 +1,27 @@
+From 8c8199cf7cc12c9046922b704642e7cab826305a Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 17:26:02 +0430
+Subject: [PATCH 25/33] pthread_create
+
+---
+ system.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/system.c b/system.c
+index 7191355..a8dbaf3 100644
+--- a/system.c
++++ b/system.c
+@@ -25,8 +25,10 @@
+ #ifdef withBoehmGC
+ #define GC_THREAD
+ #include <gc/gc.h>
++#ifndef __serenity__
+ #define pthread_create GC_pthread_create
+ #endif
++#endif
+ 
+ #ifdef withTermios
+ #include <termios.h>
+-- 
+2.32.0
+

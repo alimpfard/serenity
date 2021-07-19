@@ -1,0 +1,84 @@
+From 34fa5d69674183b523fb821a71e8d777577ebb37 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 15:56:49 +0430
+Subject: [PATCH 02/33] Remove some unused stuff
+
+---
+ file.c   | 11 +++++++++++
+ system.c |  4 ++++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/file.c b/file.c
+index e69a28f..1cf2a68 100644
+--- a/file.c
++++ b/file.c
+@@ -18,11 +18,14 @@
+ #include "citron.h"
+ #include "siphash.h"
+ #include <dirent.h>
++#if __has_include(<wordexp.h>)
++#define HAS_WORDEXP
+ #include <wordexp.h>
+ 
+ #ifndef WORDEXP_READY
+ #define WORDEXP_READY 1
+ #endif
++#endif
+ 
+ #include <termios.h>
+ static struct termios oldTermios, newTermios;
+@@ -452,6 +455,7 @@ ctr_object *ctr_file_rpath(ctr_object *myself, ctr_argument *argumentList) {
+   char rpath[PATH_MAX + 1];
+   char *ret = realpath(cpath, rpath);
+   if (!ret) {
++#ifdef HAS_WORDEXP
+     if (WORDEXP_READY) {
+       wordexp_t exp_result;
+       int st = wordexp(cpath, &exp_result, 0);
+@@ -490,6 +494,7 @@ ctr_object *ctr_file_rpath(ctr_object *myself, ctr_argument *argumentList) {
+       CtrStdFlow = ctr_build_string_from_cstring(strerror(errno));
+       return CtrStdNil;
+     }
++#endif
+   }
+   path = ctr_build_string_from_cstring(rpath);
+   ctr_heap_free(cpath);
+@@ -506,6 +511,7 @@ ctr_object *ctr_file_expand(ctr_object *myself, ctr_argument *argumentList) {
+     return CtrStdNil;
+   ctr_object *path = ctr_internal_cast2string(argumentList->object);
+   char *cpath = ctr_heap_allocate_cstring(path);
++#if HAS_WORDEXP
+   wordexp_t exp_result;
+   int st = wordexp(cpath, &exp_result, 0);
+   ctr_object *arr;
+@@ -546,6 +552,11 @@ ctr_object *ctr_file_expand(ctr_object *myself, ctr_argument *argumentList) {
+     CtrStdFlow = ctr_build_string_from_cstring(err);
+     return CtrStdNil;
+   }
++#else
++    CtrStdFlow = ctr_format_str(
++        "EWordexp is not available");
++    return CtrStdNil;
++#endif
+   return arr;
+ }
+ 
+diff --git a/system.c b/system.c
+index c01190b..0380e51 100644
+--- a/system.c
++++ b/system.c
+@@ -10,7 +10,11 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#if __has_include(<sys/fcntl.h>)
+ #include <sys/fcntl.h>
++#else
++#include <fcntl.h>
++#endif
+ #include <sys/ioctl.h>
+ #include <sys/socket.h>
+ #include <sys/wait.h>
+-- 
+2.32.0
+

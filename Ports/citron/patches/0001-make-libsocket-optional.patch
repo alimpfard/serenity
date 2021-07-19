@@ -1,0 +1,65 @@
+From 256e67f01d51d7f31b1901c9fb425ba18c0a8dc0 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 15:46:23 +0430
+Subject: [PATCH 01/33] make libsocket optional
+
+---
+ autohell/configure.ac    | 13 ++++++++++++-
+ autohell/src/Makefile.am |  4 ++--
+ 2 files changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/autohell/configure.ac b/autohell/configure.ac
+index d79ba51..423383d 100644
+--- a/autohell/configure.ac
++++ b/autohell/configure.ac
+@@ -52,7 +52,10 @@ AC_FUNC_STRNLEN
+ AC_FUNC_STRTOD
+ AC_CHECK_FUNCS([atexit bzero dup2 floor getdelim gethostbyname gettimeofday isascii mblen memchr memmove memset pow putenv realpath regcomp rpmatch select setenv socket sqrt stpcpy strcasecmp strchr strcspn strdup strerror strncasecmp strndup strpbrk strrchr strspn strstr strtol strtoul strtoull strtoumax])
+ 
+-
++AC_ARG_WITH([sockets],
++            AS_HELP_STRING([--with-sockets], [Build with socket support]),
++            [],
++            [want_sockets=no])
+ AC_ARG_WITH([boehm-gc],
+               AS_HELP_STRING([--with-boehm-gc], [Build without libgc present]),
+               [],
+@@ -99,6 +102,13 @@ AS_IF([test "x$want_inject" = "xyes"], [
+        CTR_MAYBE_INJECT="inject.c"
+     ])
+ AC_MSG_RESULT($want_inject)
++AC_MSG_CHECKING(sockets)
++AS_IF([test "x$want_sockets" != "xno"], [
++       CFLAGS+=" -DwithSockets=1"
++       CTR_MAYBE_SOCKET="libsocket"
++       MAYBE_SOCKET_L="$BUILD_DIR_L/libsocket.so"
++    ])
++AC_MSG_RESULT($want_sockets)
+ AC_MSG_CHECKING(ffi)
+ AS_IF([test "x$want_ffi" = "xyes"], [
+        CFLAGS+=" -DwithCTypesNative=1"
+@@ -123,6 +133,7 @@ AC_SUBST([BUILD_DIR_L])
+ AC_SUBST([MAYBE_TCC_L])
+ AC_SUBST([MAYBE_FFI_L])
+ AC_SUBST([MAYBE_ASM_L])
++AC_SUBST([MAYBE_SOCKET_L])
+ AC_SUBST([STD_PATH])
+ AM_CONDITIONAL([WITH_INJECT], [test "x$want_inject" = "xyes"])
+ AM_CONDITIONAL([WITH_FFI], [test "x$want_ffi" = "xyes"])
+diff --git a/autohell/src/Makefile.am b/autohell/src/Makefile.am
+index fc7d930..588d1c8 100644
+--- a/autohell/src/Makefile.am
++++ b/autohell/src/Makefile.am
+@@ -1,7 +1,7 @@
+ AM_CFLAGS = --pedantic -O3 -Wall -fPIC -mtune=native -D withTermios -D forLinux -DCTR_STD_EXTENSION_PATH=\"$(STD_PATH)\" -D WITH_AUTOMAKE=\"$(pkgdatadir)\" $(MAYBE_ASM_C)
+-AM_LDFLAGS = -rdynamic -lm -ldl -lbsd -lpcre -lpthread $(MAYBE_FFI_L) $(MAYBE_TCC_L) $(MAYBE_ASM_L) $(BUILD_DIR_L)/libsocket.so -o ctr
++AM_LDFLAGS = -lm -ldl -lpcre -lpthread $(MAYBE_FFI_L) $(MAYBE_TCC_L) $(MAYBE_ASM_L) $(MAYBE_SOCKET_L) -o ctr
+ 
+-SUBDIRS = $(MAYBE_TCC) libsocket
++SUBDIRS = $(MAYBE_TCC) $(MAYBE_SOCKET)
+ 
+ AM_CXXFLAGS = -std=c++17 -O3 $(MAYBE_ASM_CXX) -fexceptions
+ 
+-- 
+2.32.0
+

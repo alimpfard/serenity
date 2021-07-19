@@ -1,0 +1,38 @@
+From a6c5bc0fd90e79c292ed0872f9beb98751fe9cd8 Mon Sep 17 00:00:00 2001
+From: Ali Mohammad Pur <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 15:27:51 +0430
+Subject: [PATCH 2/4] teach dynload about serenity
+
+---
+ dyn_load.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/dyn_load.c b/dyn_load.c
+index 1fc9308..1c6a908 100644
+--- a/dyn_load.c
++++ b/dyn_load.c
+@@ -61,6 +61,7 @@ STATIC GC_has_static_roots_func GC_has_static_roots = 0;
+     && !((defined(LINUX) || defined(NACL)) && defined(__ELF__)) \
+     && !(defined(NETBSD) && defined(__ELF__)) \
+     && !defined(HAIKU) && !defined(HURD) \
++    && !defined(SERENITY) \
+     && !(defined(OPENBSD) && (defined(__ELF__) || defined(M68K))) \
+     && !defined(CPPCHECK)
+ # error We only know how to find data segments of dynamic libraries for above.
+@@ -1531,6 +1532,13 @@ GC_INNER GC_bool GC_register_main_static_data(void)
+   }
+ #endif /* HAIKU */
+ 
++#if defined(SERENITY)
++  GC_INNER void GC_register_dynamic_libraries(void)
++  {
++      // TODO.
++  }
++#endif /* SERENITY */
++
+ #elif defined(PCR)
+ 
+ # include "il/PCR_IL.h"
+-- 
+2.32.0
+

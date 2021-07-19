@@ -1,0 +1,27 @@
+From 2e34b9bcf019f1df9a63e9c08e62e7fec05ac4b9 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 17:16:00 +0430
+Subject: [PATCH 21/33] no forlinux in file.c
+
+---
+ file.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/file.c b/file.c
+index f4d1f77..90fdfd1 100644
+--- a/file.c
++++ b/file.c
+@@ -27,6 +27,10 @@
+ #endif
+ #endif
+ 
++#ifdef __serenity__
++#undef forLinux
++#endif
++
+ #include <termios.h>
+ static struct termios oldTermios, newTermios;
+ 
+-- 
+2.32.0
+

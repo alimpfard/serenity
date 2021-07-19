@@ -1,0 +1,59 @@
+From dd69ccd378bce889761d556b7909800ee72add8b Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 18:28:31 +0430
+Subject: [PATCH 28/33] no gc
+
+---
+ memory-ngc.h | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/memory-ngc.h b/memory-ngc.h
+index f79d973..b66bca2 100644
+--- a/memory-ngc.h
++++ b/memory-ngc.h
+@@ -8,16 +8,20 @@
+ #include <sys/mman.h>
+ #ifndef __serenity__
+ #include <execinfo.h>
+-#endif
+-#include "citron.h"
+ #include <gc/gc.h>
+ #include <gc/gc_typed.h>
++#endif
++#include "citron.h"
+ 
+ #define CTR_MEMBLOCK_CACHE_MAX 32
++#ifndef __serenity__
+ #define malloc GC_MALLOC
+ #define calloc(x,y) GC_MALLOC((x)*(y))
+ #define gfree GC_FREE
+ #define realloc GC_REALLOC
++#else
++#define gfree free
++#endif
+ 
+ void setup_types() {}//no-op
+ 
+@@ -115,7 +119,9 @@ void *ctr_heap_allocate(size_t size)
+ 	size += q;
+ 
+ 	/* Check whether we can afford to allocate this much */
++#ifndef __serenity__
+ 	ctr_gc_alloc = GC_get_heap_size() - GC_get_free_bytes() - GC_get_unmapped_bytes();
++#endif
+ 
+ 	if (ctr_gc_memlimit < ctr_gc_alloc) {
+ 		ctr_gc_sweep(0);
+@@ -144,7 +150,9 @@ void *ctr_heap_allocate(size_t size)
+ 		abort();
+ 		exit(1);
+ 	}
++#ifndef __serenity__
+ 	GC_register_displacement(q);
++#endif
+ 	/* Store the width of the memory block in the slice itself so we can always find it */
+ 	block_width = (size_t *) slice_of_memory;
+ 	*(block_width) = size;
+-- 
+2.32.0
+

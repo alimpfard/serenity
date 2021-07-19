@@ -1,0 +1,39 @@
+From 4ce732065ae9332b21ae4ac176aa60f5cde3e2fa Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 16:32:40 +0430
+Subject: [PATCH 05/33] sys
+
+---
+ compcompat_pthread.h | 2 +-
+ system.c             | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/compcompat_pthread.h b/compcompat_pthread.h
+index 6656024..686b4bb 100644
+--- a/compcompat_pthread.h
++++ b/compcompat_pthread.h
+@@ -3,7 +3,7 @@
+ 
+ #ifndef _GNU_SOURCE
+ #ifdef __has_include
+-#if __has_include(<sys/prctl.h>)
++#if __has_include(<sys/prctl.h>) && !defined(__serenity__)
+ 
+ #include <sys/prctl.h>
+ #include <unistd.h>
+diff --git a/system.c b/system.c
+index 0380e51..242747e 100644
+--- a/system.c
++++ b/system.c
+@@ -35,7 +35,7 @@ static struct termios oldTermios, newTermios;
+ 
+ #include "compcompat_pthread.h"
+ 
+-#ifdef forLinux
++#if defined(forLinux) && !defined(__serenity__)
+ #include <bsd/stdlib.h>
+ 
+ #else
+-- 
+2.32.0
+

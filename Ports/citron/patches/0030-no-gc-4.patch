@@ -1,0 +1,110 @@
+From 834fa7b983aa52c4283424f8557a0bdc908e4a89 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 18:33:28 +0430
+Subject: [PATCH 30/33] no gc 4
+
+---
+ system.c | 11 ++---------
+ walker.c |  4 ++--
+ world.c  |  6 +++++-
+ 3 files changed, 9 insertions(+), 12 deletions(-)
+
+diff --git a/system.c b/system.c
+index a8dbaf3..da7c608 100644
+--- a/system.c
++++ b/system.c
+@@ -613,7 +613,9 @@ ctr_object *ctr_gc_collect(ctr_object *myself, ctr_argument *argumentList) {
+   int dontgc = GC_dont_gc;
+   if (GC_dont_gc)
+     ctr_nogc_incr();
++#ifndef __serenity__
+   GC_gcollect();
++#endif
+   if (dontgc != GC_dont_gc)
+     ctr_nogc_decr();
+   return myself;
+@@ -686,13 +688,7 @@ ctr_object *ctr_gc_kept_count(ctr_object *myself, ctr_argument *argumentList) {
+  */
+ ctr_object *ctr_gc_kept_alloc(ctr_object *myself, ctr_argument *argumentList) {
+   return ctr_build_number_from_float((ctr_number)
+-#ifdef withBoehmGC
+-                                         GC_get_heap_size() -
+-                                     GC_get_free_bytes() -
+-                                     GC_get_unmapped_bytes()
+-#else
+                                          ctr_gc_alloc
+-#endif
+   );
+ }
+ 
+@@ -716,9 +712,6 @@ ctr_object *ctr_gc_sticky_count(ctr_object *myself,
+ ctr_object *ctr_gc_setmemlimit(ctr_object *myself, ctr_argument *argumentList) {
+   ctr_gc_memlimit =
+       (uint64_t)ctr_internal_cast2number(argumentList->object)->value.nvalue;
+-#ifdef withBoehmGC
+-  GC_set_max_heap_size(CTR_LIMIT_MEM ? ctr_gc_memlimit : 0);
+-#endif
+   return myself;
+ }
+ 
+diff --git a/walker.c b/walker.c
+index 60f5ae3..cd4da90 100644
+--- a/walker.c
++++ b/walker.c
+@@ -623,7 +623,7 @@ __attribute__((always_inline)) ctr_object *ctr_cwlk_run(ctr_tnode *program) {
+       break;
+     }
+     /* Perform garbage collection cycle */
+-    GC_collect_a_little();
++    //GC_collect_a_little();
+     if (((ctr_gc_mode & 1) && ctr_gc_alloc > (ctr_gc_memlimit * 0.8)) ||
+         ctr_gc_mode & 4) {
+ #ifdef DEBUG_BUILD
+@@ -631,7 +631,7 @@ __attribute__((always_inline)) ctr_object *ctr_cwlk_run(ctr_tnode *program) {
+ #endif
+       // ctr_gc_internal_collect_a_little ();	//collect on limit mode
+       // GC_collect_a_little();
+-      GC_gcollect();
++      //GC_gcollect();
+ #ifdef DEBUG_BUILD
+       printf("> GC : %d bytes\n", ctr_gc_alloc);
+ #endif
+diff --git a/world.c b/world.c
+index 3c41e1a..48e1371 100644
+--- a/world.c
++++ b/world.c
+@@ -34,10 +34,12 @@ static pthread_mutex_t ctr_message_mutex = {{PTHREAD_MUTEX_RECURSIVE}};
+ #define CTR_THREAD_UNLOCK()
+ #endif
+ 
++#ifndef __serenity__
+ #ifdef withBoehmGC
+ #define GC_THREAD
+ #include <gc/gc.h>
+ #endif
++#endif
+ #ifdef withBoehmGC_P
+ #define ctr_heap_allocate_typed_(s, t) ctr_heap_allocate_typed(s, t)
+ #else
+@@ -149,7 +151,9 @@ static const int all_signals[] = {
+ };
+ 
+ static ctr_object *ctr_gc_dump(ctr_object *myself, ctr_argument *argumentList) {
++#ifndef __serenity__
+   GC_dump();
++#endif
+   return myself;
+ }
+ 
+@@ -956,7 +960,7 @@ ctr_object *ctr_internal_create_mapped_object(int type, int shared) {
+     return ctr_internal_create_mapped_object_unshared(type);
+ }
+ 
+-#ifndef withBoehmGC
++#if !defined(withBoehmGC) && !defined(__serenity__)
+ void ctr_finalize_clear(GC_PTR obj, GC_PTR user_data) {
+   ctr_object *o = obj;
+   if (o->release_hook)
+-- 
+2.32.0
+

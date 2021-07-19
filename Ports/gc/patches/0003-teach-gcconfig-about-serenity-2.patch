@@ -1,0 +1,30 @@
+From 51fe7f471b835bbe748a20ae1fd07d3c5947e0c3 Mon Sep 17 00:00:00 2001
+From: Ali Mohammad Pur <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 15:30:05 +0430
+Subject: [PATCH 3/4] teach gcconfig about serenity 2
+
+---
+ include/private/gcconfig.h | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/include/private/gcconfig.h b/include/private/gcconfig.h
+index b868053..75d6db5 100644
+--- a/include/private/gcconfig.h
++++ b/include/private/gcconfig.h
+@@ -1391,8 +1391,12 @@ EXTERN_C_BEGIN
+ #   endif
+ #   ifdef SERENITY
+ #     define OS_TYPE "SERENITY"
+-#     define GETPAGESIZE() (unsigned)sysconf(_SC_PAGE_SIZE)
++#     define GETPAGESIZE() (unsigned)sysconf(_SC_PAGESIZE)
+ #     define DYNAMIC_LOADING
++      extern int etext[];
++#     define DATASTART ((ptr_t)(etext))
++      extern int _end[];
++#     define DATAEND ((ptr_t)(_end))
+ #   endif
+ #   ifdef SOLARIS
+ #       define OS_TYPE "SOLARIS"
+-- 
+2.32.0
+

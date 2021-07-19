@@ -1,0 +1,26 @@
+From d84549ba5f7ea5f4b3cf3b7a4f64e92f904ae1c1 Mon Sep 17 00:00:00 2001
+From: AnotherTest <ali.mpfard@gmail.com>
+Date: Sun, 18 Jul 2021 17:22:50 +0430
+Subject: [PATCH 24/33] hack flock
+
+---
+ file.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/file.c b/file.c
+index f429acb..7d5f31c 100644
+--- a/file.c
++++ b/file.c
+@@ -1197,7 +1197,8 @@ ctr_object *ctr_file_lock_generic(ctr_object *myself,
+   } else {
+     fd = (int)fdObj->value.nvalue;
+   }
+-  b = flock(fd, lock);
++  b = 0;
++  //b = flock(fd, lock);
+   if (b != 0) {
+     close(fd);
+     answer = ctr_build_bool(0);
+-- 
+2.32.0
+
