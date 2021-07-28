@@ -37,6 +37,7 @@ public:
 
     void set(StringView key, String value) { m_mapping.set(key, value); }
     String get(StringView key) const { return m_mapping.get(key).value(); }
+    Optional<String> maybe_get(StringView key) const { return m_mapping.get(key); }
 
     StringView as_string_view() const { return m_builder.string_view(); }
     String as_string() const { return m_builder.build(); }
