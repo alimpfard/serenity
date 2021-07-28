@@ -100,6 +100,19 @@ String Pointer::to_string() const
     return builder.to_string();
 }
 
+String Reference::to_string() const
+{
+    if (!m_pointee)
+        return {};
+    StringBuilder builder;
+    builder.append(m_pointee->to_string());
+    if (m_kind == Kind::Lvalue)
+        builder.append("&");
+    else
+        builder.append("&&");
+    return builder.to_string();
+}
+
 void Parameter::dump(FILE* output, size_t indent) const
 {
     ASTNode::dump(output, indent);
@@ -354,6 +367,16 @@ void BooleanLiteral::dump(FILE* output, size_t indent) const
 void Pointer::dump(FILE* output, size_t indent) const
 {
     ASTNode::dump(output, indent);
+    if (!m_pointee.is_null()) {
+        m_pointee->dump(output, indent + 1);
+    }
+}
+
+void Reference::dump(FILE* output, size_t indent) const
+{
+    ASTNode::dump(output, indent);
+    print_indent(output, indent + 1);
+    outln(output, "{}", m_kind == Kind::Lvalue ? "&" : "&&");
     if (!m_pointee.is_null()) {
         m_pointee->dump(output, indent + 1);
     }
