@@ -1,0 +1,26 @@
+- Constructor:
+    - Check if a template called 'construct' is defined
+        - Check all ctors and generate a union ctor
+            - For now, pick just one
+    - Or check all public ctors
+- (public) Members:
+    - If it's a Function<T> on_*, generate callback member
+        - Somehow check if the existing member is made by us
+            - Transfer its "old callback" to the current one
+        - Set it to call the given JS function after the old callback
+    - If it's a pair of functions called x() and set_x():
+        - Make a native property with those
+    - If it's a normal function
+        - Make a function from that
+
+- Type conversion:
+    - Forwards:
+        - Ptr<Object> -> WrappedObject
+        - Numeric -> Number/BigInt (depending on type range)
+        - String -> String
+        - Anything else -> report an error and avoid it
+    - Backwards:
+        - WrappedObject -> Ptr<Object>
+        - Number/BigInt -> Check type
+        - String -> String
+        - Anything else -> throw
