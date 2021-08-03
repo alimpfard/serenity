@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <string.h>
 #include <syscall.h>
+#include <time.h>
 #include <unistd.h>
 
 extern "C" {
@@ -166,6 +167,24 @@ int sigsuspend(const sigset_t*)
 {
     dbgln("FIXME: Implement sigsuspend()");
     return -1;
+}
+
+int sigwait(const sigset_t* __restrict set, int* __restrict sig)
+{
+    siginfo_t info;
+    if (sigtimedwait(set, &info, nullptr) < 0)
+        return -1;
+    *sig = info.si_signo;
+    return 0;
+}
+
+int sigtimedwait(const sigset_t* __restrict set, siginfo_t* __restrict info, const struct timespec* __restrict timeout)
+{
+    int rc = 0;
+    do {
+        rc = syscall(SC_sigtimedwait, set, info, timeout);
+    } while (rc == -EINTR);
+    __RETURN_WITH_ERRNO(rc, 0, -1);
 }
 
 static const char* signal_names[] = {

@@ -194,7 +194,8 @@ enum class NeedsBigProcessLock {
     S(emuctl, NeedsBigProcessLock::Yes)                     \
     S(statvfs, NeedsBigProcessLock::Yes)                    \
     S(fstatvfs, NeedsBigProcessLock::Yes)                   \
-    S(kill_thread, NeedsBigProcessLock::Yes)
+    S(kill_thread, NeedsBigProcessLock::Yes)                \
+    S(sigtimedwait, NeedsBigProcessLock::Yes)
 
 namespace Syscall {
 

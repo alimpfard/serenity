@@ -852,6 +852,27 @@ void Thread::resume_from_stopped()
     }
 }
 
+u8 Thread::take_one_signal(u8 mask)
+{
+    u8 selected_signal = 0;
+    {
+        ScopedSpinLock thread_lock(m_lock);
+        auto matching = m_pending_signals & mask;
+        if (matching) {
+            for (auto signal = 0; signal < 32; ++signal) {
+                auto signal_mask = 1 << signal;
+                if (matching & signal_mask) {
+                    selected_signal = signal;
+                    m_pending_signals &= ~signal_mask;
+                    break;
+                }
+            }
+        }
+    }
+
+    return selected_signal;
+}
+
 DispatchSignalResult Thread::dispatch_signal(u8 signal)
 {
     VERIFY_INTERRUPTS_DISABLED();

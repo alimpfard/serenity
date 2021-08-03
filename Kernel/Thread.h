@@ -1034,6 +1034,7 @@ public:
     DispatchSignalResult dispatch_one_pending_signal();
     DispatchSignalResult try_dispatch_one_pending_signal(u8 signal);
     DispatchSignalResult dispatch_signal(u8 signal);
+    u8 take_one_signal(u8 mask);
     void check_dispatch_pending_signal();
     [[nodiscard]] bool has_unmasked_pending_signals() const { return m_have_any_unmasked_pending_signals.load(AK::memory_order_consume); }
     [[nodiscard]] bool should_ignore_signal(u8 signal) const;

@@ -51,6 +51,44 @@ KResultOr<FlatPtr> Process::sys$sigpending(Userspace<sigset_t*> set)
     return 0;
 }
 
+KResultOr<FlatPtr> Process::sys$sigtimedwait(Userspace<const sigset_t*> set, Userspace<siginfo_t*> info, Userspace<const timespec*> timeout)
+{
+    VERIFY_PROCESS_BIG_LOCK_ACQUIRED(this);
+    REQUIRE_PROMISE(stdio);
+    sigset_t user_set;
+    if (!copy_from_user(&user_set, set))
+        return EFAULT;
+    Optional<Time> user_timeout;
+    if (timeout) {
+        auto maybe_time = copy_time_from_user(timeout);
+        if (!maybe_time.has_value())
+            return EFAULT;
+        user_timeout = maybe_time.release_value();
+    }
+
+    siginfo_t result_info {};
+
+    auto pending_signals = Thread::current()->pending_signals();
+    if (auto mask = user_set & pending_signals) {
+        auto signal = Thread::current()->take_one_signal(mask);
+        VERIFY(signal != 0);
+        auto& process = Thread::current()->process();
+        result_info.si_signo = signal;
+        result_info.si_pid = process.pid().value();
+        result_info.si_uid = process.uid();
+        result_info.si_addr = (void*)Thread::current()->regs().ip();
+        if (!copy_to_user(info, &result_info))
+            return EFAULT;
+        return 0;
+    }
+
+    if (user_timeout.has_value() && user_timeout->is_zero())
+        return EAGAIN;
+
+    // FIXME: Block until the timeout is hit (if one is provided).
+    return ENOTSUP;
+}
+
 KResultOr<FlatPtr> Process::sys$sigaction(int signum, Userspace<const sigaction*> user_act, Userspace<sigaction*> user_old_act)
 {
     VERIFY_PROCESS_BIG_LOCK_ACQUIRED(this)

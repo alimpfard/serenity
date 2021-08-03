@@ -343,6 +343,7 @@ public:
     KResultOr<FlatPtr> sys$sigaction(int signum, Userspace<const sigaction*> act, Userspace<sigaction*> old_act);
     KResultOr<FlatPtr> sys$sigprocmask(int how, Userspace<const sigset_t*> set, Userspace<sigset_t*> old_set);
     KResultOr<FlatPtr> sys$sigpending(Userspace<sigset_t*>);
+    KResultOr<FlatPtr> sys$sigtimedwait(Userspace<const sigset_t*>, Userspace<siginfo_t*>, Userspace<const timespec*>);
     KResultOr<FlatPtr> sys$getgroups(size_t, Userspace<gid_t*>);
     KResultOr<FlatPtr> sys$setgroups(size_t, Userspace<const gid_t*>);
     KResultOr<FlatPtr> sys$pipe(int pipefd[2], int flags);

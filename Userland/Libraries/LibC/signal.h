@@ -57,6 +57,8 @@ int sigsuspend(const sigset_t*);
 int raise(int sig);
 int getsignalbyname(const char*);
 const char* getsignalname(int);
+int sigwait(const sigset_t* __restrict set, int* __restrict sig);
+int sigtimedwait(const sigset_t* __restrict set, siginfo_t* __restrict info, const struct timespec* __restrict timeout);
 
 extern const char* sys_siglist[NSIG];
 
