@@ -1,5 +1,6 @@
 set(SOURCES
     AbstractMachine/AbstractMachine.cpp
+    AbstractMachine/BytecodeInstructions.cpp
     AbstractMachine/BytecodeInterpreter.cpp
     AbstractMachine/Configuration.cpp
     Parser/Parser.cpp

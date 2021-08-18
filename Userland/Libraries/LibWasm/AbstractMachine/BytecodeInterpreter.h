@@ -67,6 +67,18 @@ protected:
 
     Optional<Trap> m_trap;
     StackInfo m_stack_info;
+
+private:
+    static constexpr auto generate_single_byte_jump_table();
+
+#define M(_, name) void name##_impl(Configuration&, InstructionPointer&, Instruction const&);
+
+    ENUMERATE_WASM_SINGLE_BYTE_INSTRUCTIONS(M)
+    ENUMERATE_WASM_MULTI_BYTE_INSTRUCTIONS(M)
+
+#undef M
+
+    void unimplemented_impl(Configuration& configuration, InstructionPointer& ip, Instruction const& instruction);
 };
 
 struct DebuggerBytecodeInterpreter : public BytecodeInterpreter {
@@ -80,3 +92,18 @@ private:
 };
 
 }
+
+#define TRAP_IF_NOT(x)                                                                         \
+    do {                                                                                       \
+        if (trap_if_not(x, #x##sv)) {                                                          \
+            dbgln_if(WASM_TRACE_DEBUG, "Trapped because {} failed, at line {}", #x, __LINE__); \
+            return;                                                                            \
+        }                                                                                      \
+    } while (false)
+
+#define TRAP_IF_NOT_NORETURN(x)                                                                \
+    do {                                                                                       \
+        if (trap_if_not(x, #x##sv)) {                                                          \
+            dbgln_if(WASM_TRACE_DEBUG, "Trapped because {} failed, at line {}", #x, __LINE__); \
+        }                                                                                      \
+    } while (false)
