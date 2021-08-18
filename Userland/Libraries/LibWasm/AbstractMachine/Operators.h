@@ -47,7 +47,7 @@ struct Divide {
         } else {
             Checked value(lhs);
             value /= rhs;
-            if (value.has_overflow())
+            if (value.has_overflow()) [[unlikely]]
                 return AK::Result<Lhs, StringView>("Integer division overflow"sv);
             return AK::Result<Lhs, StringView>(value.value());
         }
