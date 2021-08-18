@@ -186,12 +186,12 @@ public:
     {
         if constexpr (IsSigned<T>) {
             // Ensure that the resulting value won't be out of range, this can only happen when dividing by -1.
-            if (other == -1 && m_value == NumericLimits<T>::min()) {
+            if (other == -1 && m_value == NumericLimits<T>::min()) [[unlikely]] {
                 m_overflow = true;
                 return;
             }
         }
-        if (other == 0) {
+        if (other == 0) [[unlikely]] {
             m_overflow = true;
             return;
         }
