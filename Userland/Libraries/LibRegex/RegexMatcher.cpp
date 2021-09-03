@@ -6,20 +6,17 @@
 
 #include <AK/BumpAllocator.h>
 #include <AK/Debug.h>
+#include <AK/ScopeGuard.h>
 #include <AK/String.h>
 #include <AK/StringBuilder.h>
+#include <LibRegex/Debugger.h>
+#include <LibRegex/RegexDebug.h>
 #include <LibRegex/RegexMatcher.h>
 #include <LibRegex/RegexParser.h>
 
-#if REGEX_DEBUG
-#    include <LibRegex/RegexDebug.h>
-#endif
-
 namespace regex {
 
-#if REGEX_DEBUG
 static RegexDebug s_regex_dbg(stderr);
-#endif
 
 template<class Parser>
 regex::Parser::Result Regex<Parser>::parse_pattern(StringView pattern, typename ParserTraits<Parser>::OptionsType regex_options)
@@ -119,6 +116,11 @@ RegexResult Matcher<Parser>::match(RegexStringView const& view, Optional<typenam
 template<typename Parser>
 RegexResult Matcher<Parser>::match(Vector<RegexStringView> const& views, Optional<typename ParserTraits<Parser>::OptionsType> regex_options) const
 {
+    if constexpr (REGEX_DEBUG) {
+        if (!m_pattern->debugger())
+            m_pattern->attach_debugger(s_regex_dbg);
+    }
+
     // If the pattern *itself* isn't stateful, reset any changes to start_offset.
     if (!((AllFlags)m_regex_options.value() & AllFlags::Internal_Stateful))
         m_pattern->start_offset = 0;
@@ -176,10 +178,16 @@ RegexResult Matcher<Parser>::match(Vector<RegexStringView> const& views, Optiona
             state.matches.at(input.match_index) = { input.view.substring_view(start_position, state.string_position - start_position), input.line, start_position, input.global_offset + start_position };
         }
     };
+    ArmedScopeGuard guard {
+        [&] {
+            m_pattern->debugger()->leave_match();
+        }
+    };
 
-#if REGEX_DEBUG
-    s_regex_dbg.print_header();
-#endif
+    if (auto debugger = m_pattern->debugger())
+        debugger->enter_match();
+    else
+        guard.disarm();
 
     bool continue_search = input.regex_options.has_flag_set(AllFlags::Global) || input.regex_options.has_flag_set(AllFlags::Multiline);
     if (input.regex_options.has_flag_set(AllFlags::Internal_Stateful))
@@ -395,14 +403,14 @@ Optional<bool> Matcher<Parser>::execute(MatchInput const& input, MatchState& sta
     size_t recursion_level = 0;
 
     auto& bytecode = m_pattern->parser_result.bytecode;
+    auto* debugger = m_pattern->debugger();
 
     for (;;) {
         auto& opcode = bytecode.get_opcode(state);
         ++operations;
 
-#if REGEX_DEBUG
-        s_regex_dbg.print_opcode("VM", opcode, state, recursion_level, false);
-#endif
+        if (debugger)
+            debugger->enter_opcode(opcode, state, recursion_level);
 
         ExecutionResult result;
         if (input.fail_counter > 0) {
@@ -412,9 +420,8 @@ Optional<bool> Matcher<Parser>::execute(MatchInput const& input, MatchState& sta
             result = opcode.execute(input, state);
         }
 
-#if REGEX_DEBUG
-        s_regex_dbg.print_result(opcode, bytecode, input, state, result);
-#endif
+        if (debugger)
+            debugger->leave_opcode(opcode, bytecode, input, state, result);
 
         state.instruction_position += opcode.size();
 

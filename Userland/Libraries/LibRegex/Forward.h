@@ -14,6 +14,13 @@ class Lexer;
 class PosixExtendedParser;
 class ECMA262Parser;
 
+struct MatchInput;
+struct MatchState;
+enum class ExecutionResult : u8;
+
+template<typename T>
+class Regex;
+
 class ByteCode;
 class OpCode;
 class OpCode_Exit;

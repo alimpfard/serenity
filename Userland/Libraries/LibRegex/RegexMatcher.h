@@ -6,7 +6,9 @@
 
 #pragma once
 
+#include "Debugger.h"
 #include "RegexByteCode.h"
+#include "RegexDebug.h"
 #include "RegexMatch.h"
 #include "RegexOptions.h"
 #include "RegexParser.h"
@@ -76,7 +78,7 @@ class Regex final {
 public:
     String pattern_value;
     regex::Parser::Result parser_result;
-    OwnPtr<Matcher<Parser>> matcher { nullptr };
+    OwnPtr<Matcher<Parser>> matcher;
     mutable size_t start_offset { 0 };
 
     static regex::Parser::Result parse_pattern(StringView pattern, typename ParserTraits<Parser>::OptionsType regex_options = {});
@@ -88,9 +90,20 @@ public:
     Regex& operator=(Regex&&);
 
     typename ParserTraits<Parser>::OptionsType options() const;
-    void print_bytecode(FILE* f = stdout) const;
     String error_string(Optional<String> message = {}) const;
     static String error_string(regex::Parser::Result const&, StringView pattern, Optional<String> message = {});
+
+    Debugger* debugger() const { return m_debugger; }
+    void attach_debugger(Debugger& debugger) const
+    {
+        VERIFY(!m_debugger);
+        m_debugger = &debugger;
+    }
+    void detach_debugger() const
+    {
+        VERIFY(m_debugger);
+        m_debugger = nullptr;
+    }
 
     RegexResult match(RegexStringView const view, Optional<typename ParserTraits<Parser>::OptionsType> regex_options = {}) const
     {
@@ -218,6 +231,9 @@ public:
         RegexResult result = matcher->match(views, AllOptions { regex_options.value_or({}) } | AllFlags::SkipSubExprResults);
         return result.success;
     }
+
+private:
+    mutable Debugger* m_debugger { nullptr };
 };
 
 // free standing functions for match, search and has_match

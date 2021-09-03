@@ -12,7 +12,7 @@
 
 namespace regex {
 
-class RegexDebug {
+class RegexDebug : public Debugger {
 public:
     RegexDebug(FILE* file = stdout)
         : m_file(file)
@@ -52,7 +52,7 @@ public:
         fflush(m_file);
     }
 
-    void print_opcode(String const& system, OpCode& opcode, MatchState& state, size_t recursion = 0, bool newline = true) const
+    void print_opcode(String const& system, OpCode const& opcode, MatchState const& state, size_t recursion = 0, bool newline = true) const
     {
         out(m_file, "{:15} | {:5} | {:9} | {:35} | {:30} | {:20}",
             system.characters(),
@@ -69,7 +69,7 @@ public:
         }
     }
 
-    void print_result(OpCode const& opcode, ByteCode const& bytecode, MatchInput const& input, MatchState& state, ExecutionResult result) const
+    void print_result(OpCode const& opcode, ByteCode const& bytecode, MatchInput const& input, MatchState const& state, ExecutionResult result) const
     {
         StringBuilder builder;
         builder.append(execution_result_name(result));
@@ -116,6 +116,16 @@ public:
     }
 
 private:
+    virtual void enter_match() override { print_header(); }
+    virtual void enter_opcode(OpCode const& opcode, MatchState const& state, size_t recursion_level) override
+    {
+        print_opcode("VM"sv, opcode, state, recursion_level, false);
+    }
+    virtual void leave_opcode(OpCode const& opcode, ByteCode const& bytecode, MatchInput const& input, MatchState const& state, ExecutionResult result) override
+    {
+        print_result(opcode, bytecode, input, state, result);
+    }
+
     String m_debug_stripline;
     FILE* m_file;
 };
