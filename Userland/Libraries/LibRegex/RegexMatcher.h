@@ -90,6 +90,7 @@ public:
     typename ParserTraits<Parser>::OptionsType options() const;
     void print_bytecode(FILE* f = stdout) const;
     String error_string(Optional<String> message = {}) const;
+    static String error_string(regex::Parser::Result const&, StringView pattern, Optional<String> message = {});
 
     RegexResult match(RegexStringView const view, Optional<typename ParserTraits<Parser>::OptionsType> regex_options = {}) const
     {

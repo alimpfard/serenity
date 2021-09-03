@@ -972,7 +972,7 @@ NonnullRefPtr<RegExpLiteral> Parser::parse_regexp_literal()
     auto parsed_regex = Regex<ECMA262>::parse_pattern(parsed_pattern, parsed_flags);
 
     if (parsed_regex.error != regex::Error::NoError)
-        syntax_error(String::formatted("RegExp compile error: {}", Regex<ECMA262>(parsed_regex, parsed_pattern, parsed_flags).error_string()), rule_start.position());
+        syntax_error(String::formatted("RegExp compile error: {}", Regex<ECMA262>::error_string(parsed_regex, parsed_pattern)), rule_start.position());
 
     SourceRange range { m_state.current_token.filename(), rule_start.position(), position() };
     return create_ast_node<RegExpLiteral>(move(range), move(parsed_regex), move(parsed_pattern), move(parsed_flags), pattern.to_string(), move(flags));

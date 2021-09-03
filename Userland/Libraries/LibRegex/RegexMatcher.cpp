@@ -87,9 +87,15 @@ typename ParserTraits<Parser>::OptionsType Regex<Parser>::options() const
 template<class Parser>
 String Regex<Parser>::error_string(Optional<String> message) const
 {
+    return error_string(parser_result, pattern_value, move(message));
+}
+
+template<class Parser>
+String Regex<Parser>::error_string(const regex::Parser::Result& parser_result, StringView pattern, Optional<String> message)
+{
     StringBuilder eb;
     eb.append("Error during parsing of regular expression:\n");
-    eb.appendff("    {}\n    ", pattern_value);
+    eb.appendff("    {}\n    ", pattern);
     for (size_t i = 0; i < parser_result.error_token.position(); ++i)
         eb.append(' ');
 
