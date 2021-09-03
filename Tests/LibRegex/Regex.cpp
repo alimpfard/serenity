@@ -860,3 +860,25 @@ BENCHMARK_CASE(fork_performance)
     auto result = re.match(g_lots_of_a_s);
     EXPECT_EQ(result.success, true);
 }
+
+TEST_CASE(debug_info)
+{
+    //                 012     8  b d f  12
+    //                 vvv     v  v v v  v
+    Regex<ECMA262> re("^he{2,3}(?:l)l?(?=o)", ECMAScriptFlags::EmitDebugInfo);
+    auto info = re.parser_result.debug_information;
+    EXPECT(info);
+    EXPECT_EQ(info->line_info.size(), 10u);
+    HashTable<size_t> seen;
+    for (auto& value : info->line_info)
+        seen.set(value);
+
+    EXPECT(seen.contains(0));
+    EXPECT(seen.contains(1));
+    EXPECT(seen.contains(2));
+    EXPECT(seen.contains(8));
+    EXPECT(seen.contains(11));
+    EXPECT(seen.contains(13));
+    EXPECT(seen.contains(15));
+    EXPECT(seen.contains(18));
+}

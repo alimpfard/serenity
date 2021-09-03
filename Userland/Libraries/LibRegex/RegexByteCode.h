@@ -14,6 +14,7 @@
 #include <AK/HashMap.h>
 #include <AK/NonnullOwnPtr.h>
 #include <AK/OwnPtr.h>
+#include <AK/RedBlackTree.h>
 #include <AK/Traits.h>
 #include <AK/TypeCasts.h>
 #include <AK/Types.h>
@@ -21,6 +22,10 @@
 #include <LibUnicode/Forward.h>
 
 namespace regex {
+
+struct DebugInfo : public RefCounted<DebugInfo> {
+    RedBlackTree<size_t, size_t> line_info;
+};
 
 using ByteCodeValueType = u64;
 
@@ -239,7 +244,7 @@ public:
             // REGEXP BODY
             // RESTORE
             empend((ByteCodeValueType)OpCodeId::Save);
-            extend(move(lookaround_body));
+            patch_and_extend(move(lookaround_body));
             empend((ByteCodeValueType)OpCodeId::Restore);
             return;
         }
@@ -255,7 +260,7 @@ public:
             auto body_length = lookaround_body.size();
             empend((ByteCodeValueType)OpCodeId::Jump);
             empend((ByteCodeValueType)body_length + 2); // JUMP to label _A
-            extend(move(lookaround_body));
+            patch_and_extend(move(lookaround_body));
             empend((ByteCodeValueType)OpCodeId::FailForks);
             empend((ByteCodeValueType)2); // Fail two forks
             empend((ByteCodeValueType)OpCodeId::Save);
@@ -272,7 +277,7 @@ public:
             empend((ByteCodeValueType)OpCodeId::Save);
             empend((ByteCodeValueType)OpCodeId::GoBack);
             empend((ByteCodeValueType)match_length);
-            extend(move(lookaround_body));
+            patch_and_extend(move(lookaround_body));
             empend((ByteCodeValueType)OpCodeId::Restore);
             return;
         case LookAroundType::NegatedLookBehind: {
@@ -290,7 +295,7 @@ public:
             empend((ByteCodeValueType)body_length + 4); // JUMP to label _A
             empend((ByteCodeValueType)OpCodeId::GoBack);
             empend((ByteCodeValueType)match_length);
-            extend(move(lookaround_body));
+            patch_and_extend(lookaround_body);
             empend((ByteCodeValueType)OpCodeId::FailForks);
             empend((ByteCodeValueType)2); // Fail two forks
             empend((ByteCodeValueType)OpCodeId::Save);
@@ -319,16 +324,14 @@ public:
         empend(static_cast<ByteCodeValueType>(OpCodeId::ForkJump));
         empend(right.size() + 2); // Jump to the _ALT label
 
-        for (auto& op : right)
-            append(move(op));
+        patch_and_extend(right);
 
         empend(static_cast<ByteCodeValueType>(OpCodeId::Jump));
         empend(left.size()); // Jump to the _END label
 
         // LABEL _ALT = bytecode.size() + 2
 
-        for (auto& op : left)
-            append(move(op));
+        patch_and_extend(left);
 
         // LABEL _END = alterantive_bytecode.size
     }
@@ -336,6 +339,13 @@ public:
     template<typename T>
     static void transform_bytecode_repetition_min_max(ByteCode& bytecode_to_repeat, T minimum, Optional<T> maximum, size_t min_repetition_mark_id, size_t max_repetition_mark_id, bool greedy = true) requires(IsIntegral<T>)
     {
+        if (!maximum.has_value()) {
+            if (minimum == 0)
+                return transform_bytecode_repetition_any(bytecode_to_repeat, greedy);
+            if (minimum == 1)
+                return transform_bytecode_repetition_min_one(bytecode_to_repeat, greedy);
+        }
+
         ByteCode new_bytecode;
         new_bytecode.insert_bytecode_repetition_n(bytecode_to_repeat, minimum, min_repetition_mark_id);
 
@@ -354,7 +364,7 @@ public:
                 new_bytecode.empend(jump_kind);
                 new_bytecode.empend((ByteCodeValueType)0); // Placeholder for the jump target.
                 auto pre_loop_fork_jump_index = new_bytecode.size();
-                new_bytecode.extend(bytecode_to_repeat);
+                new_bytecode.patch_and_extend(bytecode_to_repeat);
                 auto repetitions = maximum.value() - minimum;
                 auto fork_jump_address = new_bytecode.size();
                 if (repetitions > 1) {
@@ -365,7 +375,7 @@ public:
                     new_bytecode.empend(jump_kind);
                     new_bytecode.empend((ByteCodeValueType)0); // Placeholder for the jump target.
                     auto post_loop_fork_jump_index = new_bytecode.size();
-                    new_bytecode.extend(bytecode_to_repeat);
+                    new_bytecode.patch_and_extend(bytecode_to_repeat);
                     fork_jump_address = new_bytecode.size();
 
                     new_bytecode[post_loop_fork_jump_index - 1] = (ByteCodeValueType)(fork_jump_address - post_loop_fork_jump_index);
@@ -397,7 +407,7 @@ public:
 
         // Note: this bytecode layout allows callers to repeat the last REGEXP instruction without the
         // REPEAT instruction forcing another loop.
-        extend(bytecode_to_repeat);
+        patch_and_extend(bytecode_to_repeat);
 
         if (n > 1) {
             empend(static_cast<ByteCodeValueType>(OpCodeId::Repeat));
@@ -405,7 +415,7 @@ public:
             empend(static_cast<ByteCodeValueType>(n - 1));
             empend(repetition_mark_id);
 
-            extend(bytecode_to_repeat);
+            patch_and_extend(bytecode_to_repeat);
         }
     }
 
@@ -441,8 +451,7 @@ public:
 
         bytecode.empend(bytecode_to_repeat.size() + 2); // Jump to the _END label
 
-        for (auto& op : bytecode_to_repeat)
-            bytecode.append(move(op));
+        bytecode.patch_and_extend(bytecode_to_repeat);
 
         bytecode.empend(static_cast<ByteCodeValueType>(OpCodeId::Jump));
         bytecode.empend(-bytecode.size() - 1); // Jump to the _START label
@@ -465,14 +474,38 @@ public:
 
         bytecode.empend(bytecode_to_repeat.size()); // Jump to the _END label
 
-        for (auto& op : bytecode_to_repeat)
-            bytecode.append(move(op));
+        bytecode.patch_and_extend(bytecode_to_repeat);
         // LABEL _END = bytecode.size()
 
         bytecode_to_repeat = move(bytecode);
     }
 
     OpCode& get_opcode(MatchState& state) const;
+
+    DebugInfo& ensure_debug_info()
+    {
+        if (!m_debug_information)
+            m_debug_information = make_ref_counted<DebugInfo>();
+        return *m_debug_information;
+    }
+
+    RefPtr<DebugInfo>& debug_info() { return m_debug_information; }
+
+    void patch_and_extend(ByteCode const& body)
+    {
+        if (body.m_debug_information) {
+            auto& line_info = body.m_debug_information->line_info;
+            auto& own_line_info = ensure_debug_info().line_info;
+            for (auto it = line_info.begin(); it != line_info.end(); ++it)
+                own_line_info.insert(it.key() + size(), *it);
+        }
+        extend(body);
+    }
+
+    void emit_debug_line_info(size_t source_offset)
+    {
+        ensure_debug_info().line_info.insert(size(), source_offset);
+    }
 
 private:
     void insert_string(StringView const& view)
@@ -486,6 +519,7 @@ private:
     ALWAYS_INLINE OpCode& get_opcode_by_id(OpCodeId id) const;
     static OwnPtr<OpCode> s_opcodes[(size_t)OpCodeId::Last + 1];
     static bool s_opcodes_initialized;
+    RefPtr<DebugInfo> m_debug_information;
 };
 
 #define ENUMERATE_EXECUTION_RESULTS                          \

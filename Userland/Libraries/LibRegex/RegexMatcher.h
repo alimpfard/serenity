@@ -17,11 +17,11 @@
 #include <AK/GenericLexer.h>
 #include <AK/HashMap.h>
 #include <AK/NonnullOwnPtrVector.h>
+#include <AK/RedBlackTree.h>
 #include <AK/Types.h>
 #include <AK/Utf32View.h>
 #include <AK/Vector.h>
 #include <ctype.h>
-
 #include <stdio.h>
 
 namespace regex {
@@ -104,6 +104,9 @@ public:
         VERIFY(m_debugger);
         m_debugger = nullptr;
     }
+
+    bool has_debug_information() const { return parser_result.debug_information; }
+    DebugInfo const& debug_information() const { return *parser_result.debug_information; }
 
     RegexResult match(RegexStringView const view, Optional<typename ParserTraits<Parser>::OptionsType> regex_options = {}) const
     {

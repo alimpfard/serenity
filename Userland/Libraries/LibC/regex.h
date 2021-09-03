@@ -82,6 +82,7 @@ enum __RegexAllFlags {
     __Regex_SkipTrimEmptyMatches = __Regex_Global << 13,     // Do not remove empty capture group results.
     __Regex_Internal_Stateful = __Regex_Global << 14,        // Internal flag; enables stateful matches.
     __Regex_Internal_BrowserExtended = __Regex_Global << 15, // Internal flag; enable browser-specific ECMA262 extensions.
+    __Regex_Internal_EmitDebugInfo = __Regex_Global << 16,   // Internal flag; emit debug information (regex <=> bytecode correlation info)
     __Regex_Last = __Regex_SkipTrimEmptyMatches
 };
 

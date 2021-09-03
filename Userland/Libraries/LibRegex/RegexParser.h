@@ -12,6 +12,7 @@
 #include "RegexOptions.h"
 
 #include <AK/Forward.h>
+#include <AK/RedBlackTree.h>
 #include <AK/StringBuilder.h>
 #include <AK/Types.h>
 #include <AK/Vector.h>
@@ -54,6 +55,9 @@ public:
         Error error;
         Token error_token;
         Vector<FlyString> capture_groups;
+        // Debug info mapping from bytecode IP to byte offset in regex source.
+        // Populated if parsed with Internal_EmitDebugInfo.
+        RefPtr<DebugInfo> debug_information;
     };
 
     explicit Parser(Lexer& lexer)
@@ -72,6 +76,8 @@ public:
     bool has_error() const { return m_parser_state.error != Error::NoError; }
     Error error() const { return m_parser_state.error; }
 
+    size_t tell() const;
+
 protected:
     virtual bool parse_internal(ByteCode&, size_t& match_length_minimum) = 0;
 
@@ -89,6 +95,12 @@ protected:
     ALWAYS_INLINE void reset();
     ALWAYS_INLINE bool done() const;
     ALWAYS_INLINE bool set_error(Error error);
+    ALWAYS_INLINE void emit_debug_line_info(ByteCode& bytecode, size_t source_offset)
+    {
+        if (!m_parser_state.regex_options.has_flag_set(AllFlags::Internal_EmitDebugInfo))
+            return;
+        bytecode.emit_debug_line_info(source_offset);
+    }
 
     struct NamedCaptureGroup {
         size_t group_index { 0 };

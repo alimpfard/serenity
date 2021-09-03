@@ -17,6 +17,7 @@ class ECMA262Parser;
 struct MatchInput;
 struct MatchState;
 enum class ExecutionResult : u8;
+struct DebugInfo;
 
 template<typename T>
 class Regex;

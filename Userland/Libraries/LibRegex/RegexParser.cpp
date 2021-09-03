@@ -32,6 +32,11 @@ static constexpr StringView identity_escape_characters(bool unicode, bool browse
     return "^$\\.*+?()[]{}|"sv;
 }
 
+size_t Parser::tell() const
+{
+    return m_parser_state.current_token.position();
+}
+
 ALWAYS_INLINE bool Parser::set_error(Error error)
 {
     if (m_parser_state.error == Error::NoError) {
@@ -169,6 +174,7 @@ ALWAYS_INLINE void Parser::back(size_t count)
 ALWAYS_INLINE void Parser::reset()
 {
     m_parser_state.bytecode.clear();
+    m_parser_state.bytecode.debug_info().clear();
     m_parser_state.lexer.reset();
     m_parser_state.current_token = m_parser_state.lexer.next();
     m_parser_state.error = Error::NoError;
@@ -189,7 +195,8 @@ Parser::Result Parser::parse(Optional<AllOptions> regex_options)
     else
         set_error(Error::InvalidPattern);
 
-    dbgln_if(REGEX_DEBUG, "[PARSER] Produced bytecode with {} entries (opcodes + arguments)", m_parser_state.bytecode.size());
+    auto debug_info = move(m_parser_state.bytecode.debug_info());
+    dbgln_if(REGEX_DEBUG, "[PARSER] Produced bytecode with {} entries (opcodes + arguments), and {} debug entries", m_parser_state.bytecode.size(), debug_info ? debug_info->line_info.size() : 0);
     return {
         move(m_parser_state.bytecode),
         move(m_parser_state.capture_groups_count),
@@ -197,7 +204,8 @@ Parser::Result Parser::parse(Optional<AllOptions> regex_options)
         move(m_parser_state.match_length_minimum),
         move(m_parser_state.error),
         move(m_parser_state.error_token),
-        m_parser_state.named_capture_groups.keys()
+        m_parser_state.named_capture_groups.keys(),
+        move(debug_info)
     };
 }
 
@@ -369,6 +377,7 @@ bool PosixBasicParser::parse_root(ByteCode& bytecode, size_t& match_length_minim
 {
     // basic_reg_exp : L_ANCHOR? RE_expression R_ANCHOR?
     if (match(TokenType::Circumflex)) {
+        emit_debug_line_info(bytecode, tell());
         consume();
         bytecode.empend((ByteCodeValueType)OpCodeId::CheckBegin);
     }
@@ -377,6 +386,7 @@ bool PosixBasicParser::parse_root(ByteCode& bytecode, size_t& match_length_minim
         return false;
 
     if (match(TokenType::Dollar)) {
+        emit_debug_line_info(bytecode, tell());
         consume();
         bytecode.empend((ByteCodeValueType)OpCodeId::CheckEnd);
     }
@@ -454,7 +464,7 @@ bool PosixBasicParser::parse_simple_re(ByteCode& bytecode, size_t& match_length_
         match_length_minimum += re_match_length_minimum;
     }
 
-    bytecode.extend(move(simple_re_bytecode));
+    bytecode.patch_and_extend(simple_re_bytecode);
     return true;
 }
 
@@ -481,13 +491,16 @@ bool PosixBasicParser::parse_nonduplicating_re(ByteCode& bytecode, size_t& match
         if (capture_group_index <= number_of_addressable_capture_groups) {
             m_capture_group_minimum_lengths[capture_group_index - 1] = capture_length_minimum;
             m_capture_group_seen[capture_group_index - 1] = true;
+            emit_debug_line_info(bytecode, tell());
             bytecode.insert_bytecode_group_capture_left(capture_group_index);
         }
 
-        bytecode.extend(capture_bytecode);
+        bytecode.patch_and_extend(capture_bytecode);
 
-        if (capture_group_index <= number_of_addressable_capture_groups)
+        if (capture_group_index <= number_of_addressable_capture_groups) {
+            emit_debug_line_info(bytecode, tell());
             bytecode.insert_bytecode_group_capture_right(capture_group_index);
+        }
         return true;
     }
 
@@ -497,6 +510,7 @@ bool PosixBasicParser::parse_nonduplicating_re(ByteCode& bytecode, size_t& match
         if (try_skip({ backref_name, 2 })) {
             if (!m_capture_group_seen[i - 1])
                 return set_error(Error::InvalidNumber);
+            emit_debug_line_info(bytecode, tell() - 2);
             match_length_minimum += m_capture_group_minimum_lengths[i - 1];
             bytecode.insert_bytecode_compare_values({ { CharacterCompareType::Reference, (ByteCodeValueType)i } });
             return true;
@@ -510,6 +524,7 @@ bool PosixBasicParser::parse_one_char_or_collation_element(ByteCode& bytecode, s
 {
     // one_char_or_coll_elem_RE : ORD_CHAR | QUOTED_CHAR | '.' | bracket_expression
     if (match(TokenType::Period)) {
+        emit_debug_line_info(bytecode, tell());
         consume();
         bytecode.insert_bytecode_compare_values({ { CharacterCompareType::AnyChar, 0 } });
         match_length_minimum += 1;
@@ -522,6 +537,7 @@ bool PosixBasicParser::parse_one_char_or_collation_element(ByteCode& bytecode, s
         || match(TokenType::Dollar) || match(TokenType::EqualSign) || match(TokenType::LeftCurly) || match(TokenType::LeftParen)
         || match(TokenType::Pipe) || match(TokenType::Slash) || match(TokenType::RightBracket) || match(TokenType::RightParen)) {
 
+        emit_debug_line_info(bytecode, tell());
         auto ch = consume().value()[0];
         bytecode.insert_bytecode_compare_values({ { CharacterCompareType::Char, (ByteCodeValueType)ch } });
         match_length_minimum += 1;
@@ -531,6 +547,7 @@ bool PosixBasicParser::parse_one_char_or_collation_element(ByteCode& bytecode, s
     if (match(TokenType::EscapeSequence)) {
         if (m_parser_state.current_token.value().is_one_of("\\)"sv, "\\}"sv, "\\("sv, "\\{"sv))
             return false;
+        emit_debug_line_info(bytecode, tell());
         auto ch = consume().value()[1];
         bytecode.insert_bytecode_compare_values({ { CharacterCompareType::Char, (ByteCodeValueType)ch } });
         match_length_minimum += 1;
@@ -669,6 +686,7 @@ ALWAYS_INLINE bool PosixExtendedParser::parse_repetition_symbol(ByteCode& byteco
 ALWAYS_INLINE bool PosixExtendedParser::parse_bracket_expression(ByteCode& stack, size_t& match_length_minimum)
 {
     Vector<CompareTypeAndValuePair> values;
+    emit_debug_line_info(stack, tell());
     if (!AbstractPosixParser::parse_bracket_expression(values, match_length_minimum))
         return false;
 
@@ -686,6 +704,7 @@ ALWAYS_INLINE bool PosixExtendedParser::parse_sub_expression(ByteCode& stack, si
 
     for (;;) {
         if (match_ordinary_characters()) {
+            emit_debug_line_info(stack, tell());
             Token start_token = m_parser_state.current_token;
             Token last_token = m_parser_state.current_token;
             for (;;) {
@@ -712,6 +731,7 @@ ALWAYS_INLINE bool PosixExtendedParser::parse_sub_expression(ByteCode& stack, si
             return set_error(Error::InvalidRepetitionMarker);
 
         if (match(TokenType::Period)) {
+            emit_debug_line_info(stack, tell());
             length = 1;
             consume();
             bytecode.insert_bytecode_compare_values({ { CharacterCompareType::AnyChar, 0 } });
@@ -720,6 +740,7 @@ ALWAYS_INLINE bool PosixExtendedParser::parse_sub_expression(ByteCode& stack, si
         }
 
         if (match(TokenType::EscapeSequence)) {
+            emit_debug_line_info(stack, tell());
             length = 1;
             Token t = consume();
             dbgln_if(REGEX_DEBUG, "[PARSER] EscapeSequence with substring {}", t.value());
@@ -736,7 +757,7 @@ ALWAYS_INLINE bool PosixExtendedParser::parse_sub_expression(ByteCode& stack, si
             if (!parse_bracket_expression(sub_ops, length) || !sub_ops.size())
                 return set_error(Error::InvalidBracketContent);
 
-            bytecode.extend(move(sub_ops));
+            bytecode.patch_and_extend(sub_ops);
 
             consume(TokenType::RightBracket, Error::MismatchingBracket);
             should_parse_repetition_symbol = true;
@@ -752,12 +773,14 @@ ALWAYS_INLINE bool PosixExtendedParser::parse_sub_expression(ByteCode& stack, si
         }
 
         if (match(TokenType::Circumflex)) {
+            emit_debug_line_info(stack, tell());
             consume();
             bytecode.empend((ByteCodeValueType)OpCodeId::CheckBegin);
             break;
         }
 
         if (match(TokenType::Dollar)) {
+            emit_debug_line_info(stack, tell());
             consume();
             bytecode.empend((ByteCodeValueType)OpCodeId::CheckEnd);
             break;
@@ -774,6 +797,8 @@ ALWAYS_INLINE bool PosixExtendedParser::parse_sub_expression(ByteCode& stack, si
                 Lookbehind,
                 NegativeLookbehind,
             } group_mode { Normal };
+
+            emit_debug_line_info(stack, tell());
             consume();
             Optional<StringView> capture_group_name;
             bool prevent_capture_group = false;
@@ -827,7 +852,7 @@ ALWAYS_INLINE bool PosixExtendedParser::parse_sub_expression(ByteCode& stack, si
 
             switch (group_mode) {
             case Normal:
-                bytecode.extend(move(capture_group_bytecode));
+                bytecode.patch_and_extend(capture_group_bytecode);
                 break;
             case Lookahead:
                 bytecode.insert_bytecode_lookaround(move(capture_group_bytecode), ByteCode::LookAroundType::LookAhead, length);
@@ -868,7 +893,7 @@ ALWAYS_INLINE bool PosixExtendedParser::parse_sub_expression(ByteCode& stack, si
             return set_error(Error::InvalidRepetitionMarker);
     }
 
-    stack.extend(move(bytecode));
+    stack.patch_and_extend(bytecode);
     match_length_minimum += length;
 
     return true;
@@ -905,7 +930,7 @@ bool PosixExtendedParser::parse_root(ByteCode& stack, size_t& match_length_minim
     if (bytecode_left.is_empty())
         set_error(Error::EmptySubExpression);
 
-    stack.extend(move(bytecode_left));
+    stack.patch_and_extend(bytecode_left);
     match_length_minimum = match_length_minimum_left;
     return !has_error();
 }
@@ -930,7 +955,7 @@ bool ECMA262Parser::parse_internal(ByteCode& stack, size_t& match_length_minimum
         if (!res)
             return false;
 
-        stack.extend(new_stack);
+        stack.patch_and_extend(new_stack);
         match_length_minimum = new_match_length;
         return res;
     }
@@ -950,7 +975,7 @@ bool ECMA262Parser::parse_disjunction(ByteCode& stack, size_t& match_length_mini
         return false;
 
     if (!match(TokenType::Pipe)) {
-        stack.extend(left_alternative_stack);
+        stack.patch_and_extend(left_alternative_stack);
         match_length_minimum = left_alternative_min_length;
         return alt_ok;
     }
@@ -1008,7 +1033,7 @@ bool ECMA262Parser::parse_term(ByteCode& stack, size_t& match_length_minimum, bo
     if (!parse_with_quantifier())
         return false;
 
-    stack.extend(move(atom_stack));
+    stack.patch_and_extend(atom_stack);
     match_length_minimum += minimum_atom_length;
     return true;
 }
@@ -1016,28 +1041,33 @@ bool ECMA262Parser::parse_term(ByteCode& stack, size_t& match_length_minimum, bo
 bool ECMA262Parser::parse_assertion(ByteCode& stack, [[maybe_unused]] size_t& match_length_minimum, bool unicode, bool named)
 {
     if (match(TokenType::Circumflex)) {
+        emit_debug_line_info(stack, tell());
         consume();
         stack.empend((ByteCodeValueType)OpCodeId::CheckBegin);
         return true;
     }
 
     if (match(TokenType::Dollar)) {
+        emit_debug_line_info(stack, tell());
         consume();
         stack.empend((ByteCodeValueType)OpCodeId::CheckEnd);
         return true;
     }
 
     if (try_skip("\\b")) {
+        emit_debug_line_info(stack, tell() - 2);
         stack.insert_bytecode_check_boundary(BoundaryCheckType::Word);
         return true;
     }
 
     if (try_skip("\\B")) {
+        emit_debug_line_info(stack, tell() - 2);
         stack.insert_bytecode_check_boundary(BoundaryCheckType::NonWord);
         return true;
     }
 
     if (match(TokenType::LeftParen)) {
+        emit_debug_line_info(stack, tell());
         if (!try_skip("(?"))
             return false;
 
@@ -1065,7 +1095,7 @@ bool ECMA262Parser::parse_assertion(ByteCode& stack, [[maybe_unused]] size_t& ma
         if (m_should_use_browser_extended_grammar) {
             if (!unicode) {
                 if (parse_quantifiable_assertion(assertion_stack, match_length_minimum, named)) {
-                    stack.extend(move(assertion_stack));
+                    stack.patch_and_extend(assertion_stack);
                     return true;
                 }
             }
@@ -1294,6 +1324,7 @@ bool ECMA262Parser::parse_atom(ByteCode& stack, size_t& match_length_minimum, bo
 {
     if (match(TokenType::EscapeSequence)) {
         // Also part of AtomEscape.
+        emit_debug_line_info(stack, tell());
         auto token = consume();
         match_length_minimum += 1;
         stack.insert_bytecode_compare_values({ { CharacterCompareType::Char, (u8)token.value()[1] } });
@@ -1315,6 +1346,7 @@ bool ECMA262Parser::parse_atom(ByteCode& stack, size_t& match_length_minimum, bo
     }
 
     if (match(TokenType::Period)) {
+        emit_debug_line_info(stack, tell());
         consume();
         match_length_minimum += 1;
         stack.insert_bytecode_compare_values({ { CharacterCompareType::AnyChar, 0 } });
@@ -1333,6 +1365,7 @@ bool ECMA262Parser::parse_atom(ByteCode& stack, size_t& match_length_minimum, bo
             return set_error(Error::InvalidPattern);
 
         if (m_should_use_browser_extended_grammar) {
+            emit_debug_line_info(stack, tell());
             auto token = consume();
             match_length_minimum += 1;
             stack.insert_bytecode_compare_values({ { CharacterCompareType::Char, (u8)token.value()[0] } });
@@ -1343,6 +1376,7 @@ bool ECMA262Parser::parse_atom(ByteCode& stack, size_t& match_length_minimum, bo
     }
 
     if (match_ordinary_characters()) {
+        emit_debug_line_info(stack, tell());
         auto token = consume().value();
         match_length_minimum += 1;
         stack.insert_bytecode_compare_values({ { CharacterCompareType::Char, (u8)token[0] } });
@@ -1404,6 +1438,7 @@ bool ECMA262Parser::parse_atom_escape(ByteCode& stack, size_t& match_length_mini
             auto maybe_length = m_parser_state.capture_group_minimum_lengths.get(escape.value());
             if (maybe_length.has_value()) {
                 match_length_minimum += maybe_length.value();
+                emit_debug_line_info(stack, tell() - escape_str.length() - 1);
                 stack.insert_bytecode_compare_values({ { CharacterCompareType::Reference, (ByteCodeValueType)escape.value() } });
                 return true;
             }
@@ -1411,6 +1446,7 @@ bool ECMA262Parser::parse_atom_escape(ByteCode& stack, size_t& match_length_mini
             if (escape.value() <= ensure_total_number_of_capturing_parenthesis()) {
                 // This refers to a future group, and it will _always_ be matching an empty string
                 // So just match nothing and move on.
+                emit_debug_line_info(stack, tell() - escape_str.length() - 1);
                 return true;
             }
             if (!m_should_use_browser_extended_grammar) {
@@ -1425,30 +1461,35 @@ bool ECMA262Parser::parse_atom_escape(ByteCode& stack, size_t& match_length_mini
 
     // CharacterEscape > ControlEscape
     if (try_skip("f")) {
+        emit_debug_line_info(stack, tell() - 2);
         match_length_minimum += 1;
         stack.insert_bytecode_compare_values({ { CharacterCompareType::Char, (ByteCodeValueType)'\f' } });
         return true;
     }
 
     if (try_skip("n")) {
+        emit_debug_line_info(stack, tell() - 2);
         match_length_minimum += 1;
         stack.insert_bytecode_compare_values({ { CharacterCompareType::Char, (ByteCodeValueType)'\n' } });
         return true;
     }
 
     if (try_skip("r")) {
+        emit_debug_line_info(stack, tell() - 2);
         match_length_minimum += 1;
         stack.insert_bytecode_compare_values({ { CharacterCompareType::Char, (ByteCodeValueType)'\r' } });
         return true;
     }
 
     if (try_skip("t")) {
+        emit_debug_line_info(stack, tell() - 2);
         match_length_minimum += 1;
         stack.insert_bytecode_compare_values({ { CharacterCompareType::Char, (ByteCodeValueType)'\t' } });
         return true;
     }
 
     if (try_skip("v")) {
+        emit_debug_line_info(stack, tell() - 2);
         match_length_minimum += 1;
         stack.insert_bytecode_compare_values({ { CharacterCompareType::Char, (ByteCodeValueType)'\v' } });
         return true;
@@ -1458,6 +1499,7 @@ bool ECMA262Parser::parse_atom_escape(ByteCode& stack, size_t& match_length_mini
     if (try_skip("c")) {
         for (auto c : s_alphabetic_characters) {
             if (try_skip({ &c, 1 })) {
+                emit_debug_line_info(stack, tell() - 3);
                 match_length_minimum += 1;
                 stack.insert_bytecode_compare_values({ { CharacterCompareType::Char, (ByteCodeValueType)(c % 32) } });
                 return true;
@@ -1477,6 +1519,7 @@ bool ECMA262Parser::parse_atom_escape(ByteCode& stack, size_t& match_length_mini
         }
 
         // Allow '\c' in non-unicode mode, just matches 'c'.
+        emit_debug_line_info(stack, tell() - 2);
         match_length_minimum += 1;
         stack.insert_bytecode_compare_values({ { CharacterCompareType::Char, (ByteCodeValueType)'c' } });
         return true;
@@ -1485,6 +1528,7 @@ bool ECMA262Parser::parse_atom_escape(ByteCode& stack, size_t& match_length_mini
     // '\0'
     if (try_skip("0")) {
         if (!lookahead_any(s_decimal_characters)) {
+            emit_debug_line_info(stack, tell() - 2);
             match_length_minimum += 1;
             stack.insert_bytecode_compare_values({ { CharacterCompareType::Char, (ByteCodeValueType)0 } });
             return true;
@@ -1496,7 +1540,9 @@ bool ECMA262Parser::parse_atom_escape(ByteCode& stack, size_t& match_length_mini
     // LegacyOctalEscapeSequence
     if (m_should_use_browser_extended_grammar) {
         if (!unicode) {
+            auto position_before_escape = tell();
             if (auto escape = parse_legacy_octal_escape(); escape.has_value()) {
+                emit_debug_line_info(stack, position_before_escape - 1);
                 stack.insert_bytecode_compare_values({ { CharacterCompareType::Char, (ByteCodeValueType)escape.value() } });
                 match_length_minimum += 1;
                 return true;
@@ -1506,11 +1552,14 @@ bool ECMA262Parser::parse_atom_escape(ByteCode& stack, size_t& match_length_mini
 
     // HexEscape
     if (try_skip("x")) {
+        auto position_before_escape = tell();
         if (auto hex_escape = read_digits(ReadDigitsInitialZeroState::Allow, true, 2, 2); hex_escape.has_value()) {
+            emit_debug_line_info(stack, position_before_escape - 1);
             match_length_minimum += 1;
             stack.insert_bytecode_compare_values({ { CharacterCompareType::Char, (ByteCodeValueType)hex_escape.value() } });
             return true;
         } else if (!unicode) {
+            emit_debug_line_info(stack, position_before_escape - 1);
             // '\x' is allowed in non-unicode mode, just matches 'x'.
             match_length_minimum += 1;
             stack.insert_bytecode_compare_values({ { CharacterCompareType::Char, (ByteCodeValueType)'x' } });
@@ -1522,7 +1571,9 @@ bool ECMA262Parser::parse_atom_escape(ByteCode& stack, size_t& match_length_mini
     }
 
     if (try_skip("u")) {
+        auto position_before_escape = tell();
         if (auto code_point = consume_escaped_code_point(unicode); code_point.has_value()) {
+            emit_debug_line_info(stack, position_before_escape - 1);
             match_length_minimum += 1;
             stack.insert_bytecode_compare_values({ { CharacterCompareType::Char, (ByteCodeValueType)code_point.value() } });
             return true;
@@ -1534,6 +1585,7 @@ bool ECMA262Parser::parse_atom_escape(ByteCode& stack, size_t& match_length_mini
     // IdentityEscape
     for (auto ch : identity_escape_characters(unicode, m_should_use_browser_extended_grammar)) {
         if (try_skip({ &ch, 1 })) {
+            emit_debug_line_info(stack, tell() - 2);
             match_length_minimum += 1;
             stack.insert_bytecode_compare_values({ { CharacterCompareType::Char, (ByteCodeValueType)ch } });
             return true;
@@ -1542,6 +1594,7 @@ bool ECMA262Parser::parse_atom_escape(ByteCode& stack, size_t& match_length_mini
 
     if (unicode) {
         if (try_skip("/")) {
+            emit_debug_line_info(stack, tell() - 2);
             match_length_minimum += 1;
             stack.insert_bytecode_compare_values({ { CharacterCompareType::Char, (ByteCodeValueType)'/' } });
             return true;
@@ -1549,6 +1602,7 @@ bool ECMA262Parser::parse_atom_escape(ByteCode& stack, size_t& match_length_mini
     }
 
     if (named && try_skip("k")) {
+        auto position_before_name = tell();
         auto name = read_capture_group_specifier(true);
         if (name.is_empty()) {
             set_error(Error::InvalidNameForCaptureGroup);
@@ -1559,6 +1613,7 @@ bool ECMA262Parser::parse_atom_escape(ByteCode& stack, size_t& match_length_mini
             set_error(Error::InvalidNameForCaptureGroup);
             return false;
         }
+        emit_debug_line_info(stack, position_before_name - 2);
         match_length_minimum += maybe_capture_group->minimum_length;
 
         stack.insert_bytecode_compare_values({ { CharacterCompareType::Reference, (ByteCodeValueType)maybe_capture_group->group_index } });
@@ -1568,6 +1623,7 @@ bool ECMA262Parser::parse_atom_escape(ByteCode& stack, size_t& match_length_mini
     if (unicode) {
         PropertyEscape property { Empty {} };
         bool negated = false;
+        auto position_before_property = tell();
 
         if (parse_unicode_property_escape(property, negated)) {
             Vector<CompareTypeAndValuePair> compares;
@@ -1587,6 +1643,7 @@ bool ECMA262Parser::parse_atom_escape(ByteCode& stack, size_t& match_length_mini
                         compares.empend(CompareTypeAndValuePair { CharacterCompareType::Script, (ByteCodeValueType)script.script });
                 },
                 [](Empty&) { VERIFY_NOT_REACHED(); });
+            emit_debug_line_info(stack, position_before_property - 1);
             stack.insert_bytecode_compare_values(move(compares));
             match_length_minimum += 1;
             return true;
@@ -1597,10 +1654,12 @@ bool ECMA262Parser::parse_atom_escape(ByteCode& stack, size_t& match_length_mini
         return set_error(Error::InvalidTrailingEscape);
 
     bool negate = false;
+    auto position_before_class_escape = tell();
     auto ch = parse_character_class_escape(negate);
     if (!ch.has_value()) {
         if (!unicode) {
             // Allow all SourceCharacter's as escapes here.
+            emit_debug_line_info(stack, tell() - 1);
             auto token = consume();
             match_length_minimum += 1;
             stack.insert_bytecode_compare_values({ { CharacterCompareType::Char, (u8)token.value()[0] } });
@@ -1615,6 +1674,7 @@ bool ECMA262Parser::parse_atom_escape(ByteCode& stack, size_t& match_length_mini
     if (negate)
         compares.empend(CompareTypeAndValuePair { CharacterCompareType::Inverse, 0 });
     compares.empend(CompareTypeAndValuePair { CharacterCompareType::CharClass, (ByteCodeValueType)ch.value() });
+    emit_debug_line_info(stack, position_before_class_escape - 1);
     match_length_minimum += 1;
     stack.insert_bytecode_compare_values(move(compares));
     return true;
@@ -2136,7 +2196,7 @@ bool ECMA262Parser::parse_capture_group(ByteCode& stack, size_t& match_length_mi
 
             consume(TokenType::RightParen, Error::MismatchingParen);
 
-            stack.extend(move(noncapture_group_bytecode));
+            stack.patch_and_extend(noncapture_group_bytecode);
             match_length_minimum += length;
             return true;
         }
@@ -2164,7 +2224,7 @@ bool ECMA262Parser::parse_capture_group(ByteCode& stack, size_t& match_length_mi
             consume(TokenType::RightParen, Error::MismatchingParen);
 
             stack.insert_bytecode_group_capture_left(group_index);
-            stack.extend(move(capture_group_bytecode));
+            stack.patch_and_extend(capture_group_bytecode);
             stack.insert_bytecode_group_capture_right(group_index, name.view());
 
             match_length_minimum += length;
@@ -2193,7 +2253,7 @@ bool ECMA262Parser::parse_capture_group(ByteCode& stack, size_t& match_length_mi
     register_capture_group_in_current_scope(group_index);
 
     stack.insert_bytecode_group_capture_left(group_index);
-    stack.extend(move(capture_group_bytecode));
+    stack.patch_and_extend(capture_group_bytecode);
 
     m_parser_state.capture_group_minimum_lengths.set(group_index, length);
 
