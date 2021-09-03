@@ -557,8 +557,8 @@ public:
         return m_bytecode->at(state().instruction_position + 1 + offset);
     }
 
-    ALWAYS_INLINE char const* name() const;
-    static char const* name(OpCodeId const);
+    StringView name() const;
+    static StringView name(OpCodeId const);
 
     ALWAYS_INLINE void set_state(MatchState& state) { m_state = &state; }
 

@@ -13,7 +13,7 @@
 
 namespace regex {
 
-char const* OpCode::name(OpCodeId opcode_id)
+StringView OpCode::name(OpCodeId opcode_id)
 {
     switch (opcode_id) {
 #define __ENUMERATE_OPCODE(x) \
@@ -27,7 +27,7 @@ char const* OpCode::name(OpCodeId opcode_id)
     }
 }
 
-char const* OpCode::name() const
+StringView OpCode::name() const
 {
     return name(opcode_id());
 }
