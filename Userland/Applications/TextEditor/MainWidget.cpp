@@ -5,6 +5,7 @@
  */
 
 #include "MainWidget.h"
+#include "LibGUI/BasicSExpressionSyntaxHighlighter.h"
 #include <AK/Optional.h>
 #include <AK/StringBuilder.h>
 #include <AK/URL.h>
@@ -614,6 +615,13 @@ void MainWidget::initialize_menubar(GUI::Window& window)
     syntax_actions.add_action(*m_sql_highlight);
     syntax_menu.add_action(*m_sql_highlight);
 
+    m_generic_sexpr_highlight = GUI::Action::create_checkable("Generic S-Expression File", [&](auto&) {
+        m_editor->set_syntax_highlighter(make<GUI::BasicSExpressionSyntaxHighlighter>());
+        m_editor->update();
+    });
+    syntax_actions.add_action(*m_generic_sexpr_highlight);
+    syntax_menu.add_action(*m_generic_sexpr_highlight);
+
     auto& help_menu = window.add_menu("&Help");
     help_menu.add_action(GUI::CommonActions::make_help_action([](auto&) {
         Desktop::Launcher::open(URL::create_with_file_protocol("/usr/share/man/man1/TextEditor.md"), "/bin/Help");
@@ -651,6 +659,8 @@ void MainWidget::set_path(StringView path)
         m_html_highlight->activate();
     } else if (m_extension == "css") {
         m_css_highlight->activate();
+    } else if (m_extension == "wast" || m_extension == "wasm-dump") {
+        m_generic_sexpr_highlight->activate();
     } else {
         m_plain_text_highlight->activate();
     }
