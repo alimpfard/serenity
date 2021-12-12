@@ -24,6 +24,7 @@ set(SOURCES
     Debugger/EvaluateExpressionDialog.cpp
     Debugger/RegistersModel.cpp
     Debugger/VariablesModel.cpp
+    DiagnosticsWidget.cpp
     Dialogs/Git/GitCommitDialog.cpp
     Dialogs/Git/GitCommitDialogGML.h
     Dialogs/NewProjectDialog.cpp
