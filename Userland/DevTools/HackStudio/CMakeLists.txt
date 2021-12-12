@@ -12,8 +12,8 @@ compile_gml(Dialogs/NewProjectDialog.gml Dialogs/NewProjectDialogGML.h new_proje
 compile_gml(Dialogs/Git/GitCommitDialog.gml Dialogs/Git/GitCommitDialogGML.h git_commit_dialog_gml)
 
 set(SOURCES
-    CodeDocument.cpp
     ClassViewWidget.cpp
+    CodeDocument.cpp
     Debugger/BacktraceModel.cpp
     Debugger/DebugInfoWidget.cpp
     Debugger/Debugger.cpp
@@ -32,12 +32,12 @@ set(SOURCES
     Editor.cpp
     EditorWrapper.cpp
     FindInFilesWidget.cpp
+    GMLPreviewWidget.cpp
     Git/DiffViewer.cpp
     Git/GitFilesModel.cpp
     Git/GitFilesView.cpp
     Git/GitRepo.cpp
     Git/GitWidget.cpp
-    GMLPreviewWidget.cpp
     HackStudioWidget.cpp
     Language.cpp
     LanguageClient.cpp
