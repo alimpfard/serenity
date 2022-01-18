@@ -23,11 +23,25 @@
 
 namespace GUI {
 
+struct AutoCorrectClient {
+    /// No. of words before the current one to retrieve as 'context'
+    /// '0' means unigram, '1' bigram, etc etc.
+    size_t context_word_count = 0;
+
+    struct Result {
+        String suggestion;
+        float probability;
+    };
+
+    void request_autocorrection(Vector<Utf32View> context, Function<void(Vector<Result> results)> on_results_ready);
+};
+
 class TextEditor
     : public AbstractScrollableWidget
     , public TextDocument::Client
     , public Syntax::HighlighterClient
-    , public Clipboard::ClipboardClient {
+    , public Clipboard::ClipboardClient
+    , public AutoCorrectClient {
     C_OBJECT(TextEditor);
 
 public:
@@ -200,6 +214,8 @@ public:
     void add_code_point(u32 code_point);
     void reset_cursor_blink();
     void update_selection(bool is_selecting);
+
+    void process_key_for_autocorrect(GUI::KeyEvent const& event);
 
     int number_of_visible_lines() const;
     Gfx::IntRect cursor_content_rect() const;
@@ -391,6 +407,8 @@ private:
     OwnPtr<Syntax::Highlighter> m_highlighter;
     OwnPtr<AutocompleteProvider> m_autocomplete_provider;
     OwnPtr<AutocompleteBox> m_autocomplete_box;
+    RefPtr<GUI::Window> m_autocorrect_display;
+    Optional<String> m_automatic_correction;
     bool m_should_keep_autocomplete_box { false };
     size_t m_automatic_autocomplete_delay_ms { 800 };
 

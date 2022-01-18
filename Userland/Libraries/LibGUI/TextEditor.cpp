@@ -13,6 +13,8 @@
 #include <LibCore/Timer.h>
 #include <LibGUI/Action.h>
 #include <LibGUI/AutocompleteProvider.h>
+#include <LibGUI/BoxLayout.h>
+#include <LibGUI/Button.h>
 #include <LibGUI/Clipboard.h>
 #include <LibGUI/EditingEngine.h>
 #include <LibGUI/InputBox.h>
@@ -64,6 +66,24 @@ TextEditor::TextEditor(Type type)
     m_automatic_selection_scroll_timer->stop();
     create_actions();
     set_editing_engine(make<RegularEditingEngine>());
+
+    m_autocorrect_display = MUST(GUI::Window::try_create(window()));
+    m_autocorrect_display->set_rect(0, 0, 5 * 51, 25);
+    m_autocorrect_display->set_frameless(true);
+    m_autocorrect_display->set_modal(true);
+    m_autocorrect_display->set_window_type(GUI::WindowType::Tooltip);
+    auto& frame = m_autocorrect_display->set_main_widget<GUI::Frame>();
+    frame.set_fill_with_background_color(true);
+    frame.set_fixed_size(51 * 5, 25);
+    auto& layout = frame.set_layout<GUI::HorizontalBoxLayout>();
+    layout.set_margins({ 0, 0, 0, 0 });
+    layout.set_spacing(0);
+    for (size_t i = 0; i < 5; ++i) {
+        auto& button = frame.add<GUI::Button>();
+        button.set_button_style(Gfx::ButtonStyle::Coolbar);
+        button.set_name(String::formatted("suggestion_{}", i));
+        button.set_fixed_size(50, 25);
+    }
 }
 
 TextEditor::~TextEditor()
@@ -818,6 +838,12 @@ void TextEditor::keydown_event(KeyEvent& event)
     if (m_editing_engine->on_key(event))
         return;
 
+    ScopeGuard autocorrect_guard {
+        [&] {
+            process_key_for_autocorrect(event);
+        }
+    };
+
     if (event.key() == KeyCode::Key_Escape) {
         if (on_escape_pressed)
             on_escape_pressed();
@@ -870,6 +896,7 @@ void TextEditor::keydown_event(KeyEvent& event)
             return;
         if (m_autocomplete_box)
             hide_autocomplete();
+
         if (has_selection()) {
             delete_selection();
             did_update_selection();
@@ -986,6 +1013,76 @@ void TextEditor::do_delete()
         execute<RemoveTextCommand>(document().text_in_range(erased_range), erased_range);
         return;
     }
+}
+
+void TextEditor::process_key_for_autocorrect(GUI::KeyEvent const& event)
+{
+    if (event.key() == Key_Escape) {
+        m_automatic_correction.clear();
+        m_autocorrect_display->hide();
+        return;
+    }
+
+    auto initiating_code_point = event.code_point();
+    if (is_ascii_space(initiating_code_point)) {
+        if (m_automatic_correction.has_value()) {
+            delete_previous_word();
+            insert_at_cursor_or_replace_selection(*m_automatic_correction);
+            m_automatic_correction.clear();
+            add_code_point(initiating_code_point);
+        }
+
+        m_autocorrect_display->hide();
+        return;
+    }
+    Vector<Utf32View> context;
+    context.ensure_capacity(context_word_count + 1);
+    auto position = cursor();
+    for (size_t i = context_word_count + 2; i > 0; --i) {
+        auto end = position;
+        position = document().first_word_before(position, true);
+        context.prepend(*document().view_of_text_in_contiguous_range({ position, end }));
+    }
+
+    request_autocorrection(move(context), [&](Vector<AutoCorrectClient::Result> results) {
+        if (results.is_empty()) {
+            m_autocorrect_display->hide();
+            return;
+        }
+
+        size_t i = 0;
+        for (auto& result : results) {
+            if (i >= 5)
+                break;
+
+            auto button = m_autocorrect_display->find_descendant_of_type_named<GUI::Button>(String::formatted("suggestion_{}", i));
+            VERIFY(button);
+
+            button->set_text(result.suggestion);
+            if (!m_automatic_correction.has_value() && result.probability > 0.8f) {
+                m_automatic_correction = result.suggestion;
+                button->set_button_style(Gfx::ButtonStyle::ThickCap);
+            } else {
+                button->set_button_style(Gfx::ButtonStyle::Coolbar);
+            }
+
+            i++;
+        }
+
+        int number_of_active_buttons = i;
+        for (; i < 5; ++i) {
+            auto button = m_autocorrect_display->find_descendant_of_type_named<GUI::Button>(String::formatted("suggestion_{}", i));
+            VERIFY(button);
+            button->set_text("");
+            button->set_button_style(Gfx::ButtonStyle::Coolbar);
+        }
+
+        Gfx::IntRect rect { 0, 0, number_of_active_buttons * 51, 25 };
+        auto position = content_rect_for_position(cursor()).translated(0, -visible_content_rect().y()).bottom_right().translated(screen_relative_rect().top_left().translated(ruler_width(), 0).translated(10, 5));
+        rect.set_location(position);
+        m_autocorrect_display->set_rect(rect);
+        m_autocorrect_display->show();
+    });
 }
 
 void TextEditor::add_code_point(u32 code_point)
@@ -2075,6 +2172,14 @@ void TextEditor::set_text_is_secret(bool text_is_secret)
     m_text_is_secret = text_is_secret;
     document_did_update_undo_stack();
     did_update_selection();
+}
+
+void AutoCorrectClient::request_autocorrection(Vector<Utf32View> context, Function<void(Vector<Result>)> on_results_ready)
+{
+    auto word_to_correct = context.last();
+    StringBuilder builder;
+    builder.append(word_to_correct);
+    on_results_ready({});
 }
 
 }

@@ -87,6 +87,7 @@ public:
 
     String text() const;
     String text_in_range(const TextRange&) const;
+    Optional<Utf32View> view_of_text_in_contiguous_range(const TextRange&) const;
 
     Vector<TextRange> find_all(StringView needle, bool regmatch = false);
 

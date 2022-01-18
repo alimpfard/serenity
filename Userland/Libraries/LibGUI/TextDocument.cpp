@@ -364,6 +364,19 @@ String TextDocument::text_in_range(const TextRange& a_range) const
     return builder.to_string();
 }
 
+Optional<Utf32View> TextDocument::view_of_text_in_contiguous_range(const TextRange& given_range) const
+{
+    auto range = given_range.normalized();
+
+    if (range.start().line() != range.end().line())
+        return {};
+
+    VERIFY(range.start().line() < line_count());
+
+    auto& line = this->line(range.start().line());
+    return line.view().substring_view(range.start().column(), range.end().column() - range.start().column());
+}
+
 u32 TextDocument::code_point_at(const TextPosition& position) const
 {
     VERIFY(position.line() < line_count());
