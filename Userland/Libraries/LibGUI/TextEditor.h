@@ -9,6 +9,7 @@
 #include <AK/Function.h>
 #include <AK/NonnullOwnPtrVector.h>
 #include <AK/NonnullRefPtrVector.h>
+#include <LibAutoCorrect/Correct.h>
 #include <LibCore/ElapsedTimer.h>
 #include <LibCore/Timer.h>
 #include <LibGUI/AbstractScrollableWidget.h>
@@ -28,12 +29,9 @@ struct AutoCorrectClient {
     /// '0' means unigram, '1' bigram, etc etc.
     size_t context_word_count = 0;
 
-    struct Result {
-        String suggestion;
-        float probability;
-    };
+    void request_autocorrection(Vector<Utf32View> context, Function<void(Vector<AutoCorrect::Result> results)> on_results_ready);
 
-    void request_autocorrection(Vector<Utf32View> context, Function<void(Vector<Result> results)> on_results_ready);
+    Optional<AutoCorrect::AutoCorrect> autocorrect;
 };
 
 class TextEditor

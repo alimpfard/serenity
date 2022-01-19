@@ -29,22 +29,38 @@ template<typename DeclaredBaseType, typename DefaultBaseType, typename ValueType
 class Trie {
     using BaseType = typename SubstituteIfVoid<DeclaredBaseType, DefaultBaseType>::Type;
 
-    class ConstIterator {
+    template<bool IsConst>
+    class Iterator {
 
     public:
-        static ConstIterator end() { return {}; }
+        static Iterator end() { return {}; }
 
-        bool operator==(const ConstIterator& other) const { return m_current_node == other.m_current_node; }
+        bool operator==(const Iterator& other) const { return m_current_node == other.m_current_node; }
 
-        const BaseType& operator*() const { return static_cast<const BaseType&>(*m_current_node); }
-        const BaseType* operator->() const { return static_cast<const BaseType*>(m_current_node); }
-        void operator++() { skip_to_next(); }
+        const BaseType& operator*() const requires(IsConst) { return static_cast<const BaseType&>(*m_current_node); }
+        const BaseType* operator->() const requires(IsConst) { return static_cast<const BaseType*>(m_current_node); }
 
-        explicit ConstIterator(const Trie& node)
+        BaseType& operator*() requires(!IsConst) { return static_cast<BaseType&>(*m_current_node); }
+        BaseType* operator->() requires(!IsConst) { return static_cast<BaseType*>(m_current_node); }
+
+        explicit Iterator(Trie& node) requires(!IsConst)
         {
             m_current_node = &node;
             // FIXME: Figure out how to OOM harden this iterator.
             MUST(m_state.try_empend(false, node.m_children.begin(), node.m_children.end()));
+        }
+
+        explicit Iterator(const Trie& node) requires(IsConst)
+        {
+            m_current_node = const_cast<Trie*>(&node);
+            // FIXME: Figure out how to OOM harden this iterator.
+            MUST(m_state.try_empend(false, node.m_children.begin(), node.m_children.end()));
+        }
+
+        Iterator& operator++()
+        {
+            skip_to_next();
+            return *this;
         }
 
     private:
@@ -74,15 +90,21 @@ class Trie {
             skip_to_next();
         }
 
-        ConstIterator() = default;
+        Iterator() = default;
 
         struct State {
+            using IteratorType = Conditional<IsConst,
+                typename HashMap<ValueType, NonnullOwnPtr<Trie>, ValueTraits>::ConstIteratorType,
+                typename HashMap<ValueType, NonnullOwnPtr<Trie>, ValueTraits>::IteratorType>;
+
             bool did_generate_root { false };
-            typename HashMap<ValueType, NonnullOwnPtr<Trie>, ValueTraits>::ConstIteratorType it;
-            typename HashMap<ValueType, NonnullOwnPtr<Trie>, ValueTraits>::ConstIteratorType end;
+            IteratorType it;
+            IteratorType end;
         };
         Vector<State> m_state;
-        const Trie* m_current_node { nullptr };
+
+        using NodeType = Conditional<IsConst, const Trie*, Trie*>;
+        NodeType m_current_node { nullptr };
     };
 
 public:
@@ -98,7 +120,7 @@ public:
     BaseType& traverse_until_last_accessible_node(It& it, const It& end)
     {
         Trie* node = this;
-        for (; it < end; ++it) {
+        for (; it != end; ++it) {
             auto next_it = node->m_children.find(*it);
             if (next_it == node->m_children.end())
                 return static_cast<BaseType&>(*node);
@@ -125,6 +147,7 @@ public:
     }
 
     Optional<MetadataType> metadata() const requires(!IsNullPointer<MetadataType>) { return m_metadata; }
+    Optional<MetadataType>& mutable_metadata() requires(!IsNullPointer<MetadataType>) { return m_metadata; }
     void set_metadata(MetadataType metadata) requires(!IsNullPointer<MetadataType>) { m_metadata = move(metadata); }
     const MetadataType& metadata_value() const requires(!IsNullPointer<MetadataType>) { return m_metadata.value(); }
 
@@ -185,8 +208,11 @@ public:
     HashMap<ValueType, NonnullOwnPtr<Trie>, ValueTraits>& children() { return m_children; }
     HashMap<ValueType, NonnullOwnPtr<Trie>, ValueTraits> const& children() const { return m_children; }
 
-    ConstIterator begin() const { return ConstIterator(*this); }
-    ConstIterator end() const { return ConstIterator::end(); }
+    auto begin() const { return Iterator<true>(*this); }
+    auto end() const { return Iterator<true>::end(); }
+
+    auto begin() { return Iterator<false>(*this); }
+    auto end() { return Iterator<false>::end(); }
 
     [[nodiscard]] bool is_empty() const { return m_children.is_empty(); }
     void clear() { m_children.clear(); }

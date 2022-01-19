@@ -1018,7 +1018,6 @@ void TextEditor::do_delete()
 void TextEditor::process_key_for_autocorrect(GUI::KeyEvent const& event)
 {
     if (event.key() == Key_Escape) {
-        m_automatic_correction.clear();
         m_autocorrect_display->hide();
         return;
     }
@@ -1035,6 +1034,9 @@ void TextEditor::process_key_for_autocorrect(GUI::KeyEvent const& event)
         m_autocorrect_display->hide();
         return;
     }
+
+    m_automatic_correction.clear();
+
     Vector<Utf32View> context;
     context.ensure_capacity(context_word_count + 1);
     auto position = cursor();
@@ -1044,7 +1046,7 @@ void TextEditor::process_key_for_autocorrect(GUI::KeyEvent const& event)
         context.prepend(*document().view_of_text_in_contiguous_range({ position, end }));
     }
 
-    request_autocorrection(move(context), [&](Vector<AutoCorrectClient::Result> results) {
+    request_autocorrection(move(context), [&](Vector<AutoCorrect::Result> results) {
         if (results.is_empty()) {
             m_autocorrect_display->hide();
             return;
@@ -1058,9 +1060,12 @@ void TextEditor::process_key_for_autocorrect(GUI::KeyEvent const& event)
             auto button = m_autocorrect_display->find_descendant_of_type_named<GUI::Button>(String::formatted("suggestion_{}", i));
             VERIFY(button);
 
-            button->set_text(result.suggestion);
-            if (!m_automatic_correction.has_value() && result.probability > 0.8f) {
-                m_automatic_correction = result.suggestion;
+            StringBuilder builder;
+            builder.append(result.suggestion);
+            String suggestion = builder.build();
+            button->set_text(suggestion);
+            if (!m_automatic_correction.has_value() && result.probability > 0.9f) {
+                m_automatic_correction = suggestion;
                 button->set_button_style(Gfx::ButtonStyle::ThickCap);
             } else {
                 button->set_button_style(Gfx::ButtonStyle::Coolbar);
@@ -1077,8 +1082,8 @@ void TextEditor::process_key_for_autocorrect(GUI::KeyEvent const& event)
             button->set_button_style(Gfx::ButtonStyle::Coolbar);
         }
 
-        Gfx::IntRect rect { 0, 0, number_of_active_buttons * 51, 25 };
-        auto position = content_rect_for_position(cursor()).translated(0, -visible_content_rect().y()).bottom_right().translated(screen_relative_rect().top_left().translated(ruler_width(), 0).translated(10, 5));
+        Gfx::IntRect rect { 0, 0, 50 * number_of_active_buttons + 4, 25 };
+        auto position = content_rect_for_position(document().first_word_before(cursor(), true)).translated(0, -visible_content_rect().y()).bottom_right().translated(screen_relative_rect().top_left().translated(ruler_width(), 0).translated(10, 5));
         rect.set_location(position);
         m_autocorrect_display->set_rect(rect);
         m_autocorrect_display->show();
@@ -2174,12 +2179,11 @@ void TextEditor::set_text_is_secret(bool text_is_secret)
     did_update_selection();
 }
 
-void AutoCorrectClient::request_autocorrection(Vector<Utf32View> context, Function<void(Vector<Result>)> on_results_ready)
+void AutoCorrectClient::request_autocorrection(Vector<Utf32View> context, Function<void(Vector<AutoCorrect::Result>)> on_results_ready)
 {
-    auto word_to_correct = context.last();
-    StringBuilder builder;
-    builder.append(word_to_correct);
-    on_results_ready({});
+    if (!autocorrect.has_value())
+        autocorrect = MUST(AutoCorrect::AutoCorrect::load_from_file("/res/autocorrect/english.us.autocorrect"));
+    on_results_ready(autocorrect->fetch_corrections(move(context)));
 }
 
 }

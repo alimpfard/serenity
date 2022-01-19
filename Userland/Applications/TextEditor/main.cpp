@@ -20,7 +20,7 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
 {
     TRY(Core::System::pledge("stdio recvfd sendfd thread rpath cpath wpath unix"));
 
-    auto app = TRY(GUI::Application::try_create(arguments, Core::EventLoop::MakeInspectable::Yes));
+    auto app = TRY(GUI::Application::try_create(arguments));
 
     Config::pledge_domains("TextEditor");
 

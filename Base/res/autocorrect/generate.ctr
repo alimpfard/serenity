@@ -1,0 +1,134 @@
+import Library/Data/Map.
+
+var flatten is {:what
+  var lst is Array new.
+  what each_v: {:l
+    (Reflect isObject: l linkedTo: Array) either: {
+      lst is lst + flatten[l].
+    } or: {
+      lst push: l.
+    }.
+  }.
+  ^lst.
+}.
+Array on: 'flatten' do: {
+    ^flatten[me].
+}.
+
+String on: 'codepoint' do: {
+  var ss is me bytes.
+  ss < 1 ifTrue: { ^-1. }.
+  var u0 is me byteAt: 0.
+  (u0 >=: 0) & (u0 <=: 127) ifTrue: { ^u0. }.
+  ss < 2 ifTrue: { ^-1. }.
+  var u1 is me byteAt: 1.
+  (u0 >=: 192) & (u0 <=: 223) ifTrue: { ^u0 - 192 * 64 + (u1 - 128). }.
+  (u0 = 0xed) & (u1 bitAnd: 0xa0, = 0xa0) ifTrue: { ^-1. }. # 0xd800 - oxdfff
+  ss < 3 ifTrue: { ^-1. }.
+  var u2 is me byteAt: 2.
+  (u0 >=: 224) & (u0 <=: 239) ifTrue: { ^u0 - 224 * 4096 + (u1 - 128 * 64) + (u2 - 128). }.
+  ss < 4 ifTrue: { ^-1. }.
+  var u3 is me byteAt: 3.
+  (u0 >=: 240) & (u0 <=: 247) ifTrue: { ^u0 - 240 * 262144 + (u1 - 128 * 4096) + (u2 - 128 * 64) + (u3 - 128). }.
+  ^-1.
+}.
+
+var keyboardLayout is [
+    'qwertyuiop',
+    '',
+    'asdfghjkl',
+    '',
+    'zxcvbnm'
+    ## persian
+    # 'ضصثقفغعهخحجچ',
+    # '',
+    # 'شس\u6ccبلاتنمکگ',
+    # '',
+    # 'ظطزرذدپو'
+] fmap!: \:x x characters.
+
+var alphabet_first_f is 'a'. #'a'
+var alphabet_first is alphabet_first_f codepoint - 1.
+
+var rowCounts is keyboardLayout fmap: \:x x count.
+var xA        is rowCounts max + 1 / 2.
+var yA        is keyboardLayout count + 1 / 2.
+var thresh1   is 0.5.
+var mmax      is 5.
+var mmin      is 2.
+var Ct        is thresh1 * mmax / (xA + yA - 2 * mmin).
+var offset    is \:r rowCounts max - (rowCounts @ r) / 2.
+var Pc        is \:i0:i1:j0:j1 2 * thresh1 - ((i1 - i0 + offset[i0] - offset[i1]) abs + (j1 - j0) abs * Ct).
+
+
+var keymap is Map new.
+keyboardLayout each: {:i:x
+    x each: {:j:v
+        keymap put: [i, j] at: v.
+    }.
+}.
+
+var keyfmap is Map new.
+([keyboardLayout flatten] * 2) product each_v: {:comb
+    var keydescr is (comb fmap: \:x keymap at: x) flatten.
+    var prob is Pc[keydescr @ 0, keydescr @ 2, keydescr @ 1, keydescr @ 3].
+    #Pen writeln: 'Prob[${{comb join: ','}}$] = $$prob at $$keydescr'.
+    (prob < thresh1) ifTrue: {
+        True continue.
+    }.
+    keyfmap contains: comb head, ifFalse: {
+        keyfmap put: Map new at: comb head.
+    }.
+    keyfmap at: comb head, put: prob at: comb last.
+}.
+
+# struct [[gnu::packed]] TreeData {
+#     u32 magic;
+#     u32 first_alphabet_code_point;
+#     u32 alphabet_count;
+#     float minimum_accepted_probability;
+# };
+# 
+# struct [[gnu::packed]] RawFilterMapData {
+#     struct [[gnu::packed]] Data {
+#         u32 code_point;
+#         float transition_probability;
+#     };
+# 
+#     u32 count;
+#     Data data[];
+# };
+
+var TreeData is CTypes structWithFormat: '5ui5ui5uif', newIns.
+var FilterData is CTypes structWithFormat: '5uif', newIns.
+var FilterCount is CTypes structWithFormat: '5ui', newIns.
+
+var asString is \:x x getRawAddress readBytesAsString: x getSize.
+var arrayAsString is \:x x fmap: asString, join: ''.
+
+var data is File new: 'data.bin', open: 'w+'.
+
+TreeData pack: [0x69696969, alphabet_first_f codepoint, (keyboardLayout flatten fmap: \:x x codepoint, max - alphabet_first), 0.5].
+data write: asString[TreeData].
+
+FilterCount pack: [0].
+data write: asString[FilterCount].
+
+var map is keyfmap toArray sort: {:a:b ^a head codepoint - b head codepoint. }.
+map each_v: {:x
+  var k is x head.
+  var v is x last.
+  Pen writeln: 'character \'${{k}}$\' codepoint ${{k codepoint}}$ with diff ${{k codepoint - alphabet_first}}$'.
+  var filters is Array new.
+  FilterCount pack: [v count].
+  filters push: FilterCount.
+  v each: {:k:v
+      var a is FilterData newIns.
+      a pack: [k codepoint - alphabet_first, v].
+      filters push: a.
+      Pen writeln: '  - pr ${{v}}$ to ${{k}}$'.
+  }.
+  data write: arrayAsString[filters].
+}.
+
+data close.
