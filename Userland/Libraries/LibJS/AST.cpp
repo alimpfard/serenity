@@ -95,7 +95,7 @@ Completion ScopeNode::evaluate_statements(Interpreter& interpreter, GlobalObject
 {
     auto completion = normal_completion({});
     for (auto const& node : children()) {
-        completion = node.execute(interpreter, global_object).update_empty(completion.value());
+        completion = node->execute(interpreter, global_object).update_empty(completion.value());
         if (completion.is_abrupt())
             break;
     }
@@ -291,7 +291,7 @@ Value FunctionExpression::instantiate_ordinary_function_expression(Interpreter& 
 
     auto* private_scope = interpreter.vm().running_execution_context().private_environment;
 
-    auto closure = ECMAScriptFunctionObject::create(global_object, used_name, source_text(), body(), parameters(), function_length(), scope, private_scope, kind(), is_strict_mode(), might_need_arguments_object(), contains_direct_call_to_eval(), is_arrow_function());
+    auto closure = ECMAScriptFunctionObject::create(global_object, used_name, source_text(), body_ptr(), parameters(), function_length(), scope, private_scope, kind(), is_strict_mode(), might_need_arguments_object(), contains_direct_call_to_eval(), is_arrow_function());
 
     // FIXME: 6. Perform SetFunctionName(closure, name).
     // FIXME: 7. Perform MakeConstructor(closure).
@@ -811,21 +811,21 @@ Completion ForStatement::loop_evaluation(Interpreter& interpreter, GlobalObject&
 }
 
 struct ForInOfHeadState {
-    explicit ForInOfHeadState(Variant<NonnullRefPtr<ASTNode>, NonnullRefPtr<BindingPattern>> lhs)
+    explicit ForInOfHeadState(Variant<NonnullNodePtr<ASTNode>, NonnullNodePtr<BindingPattern>> lhs)
     {
         lhs.visit(
-            [&](NonnullRefPtr<ASTNode>& ast_node) {
-                expression_lhs = ast_node.ptr();
+            [&](NonnullNodePtr<ASTNode>& ast_node) {
+                expression_lhs = ast_node;
             },
-            [&](NonnullRefPtr<BindingPattern>& pattern) {
-                pattern_lhs = pattern.ptr();
+            [&](NonnullNodePtr<BindingPattern>& pattern) {
+                pattern_lhs = pattern;
                 destructuring = true;
                 lhs_kind = Assignment;
             });
     }
 
-    ASTNode* expression_lhs = nullptr;
-    BindingPattern* pattern_lhs = nullptr;
+    NodePtr<ASTNode> expression_lhs;
+    NodePtr<BindingPattern> pattern_lhs;
     enum LhsKind {
         Assignment,
         VarBinding,
@@ -851,8 +851,8 @@ struct ForInOfHeadState {
                 VERIFY(expression_lhs);
                 if (is<VariableDeclaration>(*expression_lhs)) {
                     auto& declaration = static_cast<VariableDeclaration const&>(*expression_lhs);
-                    VERIFY(declaration.declarations().first().target().has<NonnullRefPtr<Identifier>>());
-                    lhs_reference = TRY(declaration.declarations().first().target().get<NonnullRefPtr<Identifier>>()->to_reference(interpreter, global_object));
+                    VERIFY(declaration.declarations().first()->target().has<NonnullNodePtr<Identifier>>());
+                    lhs_reference = TRY(declaration.declarations().first()->target().get<NonnullNodePtr<Identifier>>()->to_reference(interpreter, global_object));
                 } else {
                     VERIFY(is<Identifier>(*expression_lhs) || is<MemberExpression>(*expression_lhs));
                     auto& expression = static_cast<Expression const&>(*expression_lhs);
@@ -874,8 +874,8 @@ struct ForInOfHeadState {
             interpreter.vm().running_execution_context().lexical_environment = iteration_environment;
 
             if (!destructuring) {
-                VERIFY(for_declaration.declarations().first().target().has<NonnullRefPtr<Identifier>>());
-                lhs_reference = MUST(interpreter.vm().resolve_binding(for_declaration.declarations().first().target().get<NonnullRefPtr<Identifier>>()->string()));
+                VERIFY(for_declaration.declarations().first()->target().has<NonnullNodePtr<Identifier>>());
+                lhs_reference = MUST(interpreter.vm().resolve_binding(for_declaration.declarations().first()->target().get<NonnullNodePtr<Identifier>>()->string()));
             }
         }
 
@@ -890,12 +890,11 @@ struct ForInOfHeadState {
 
         // j. Else,
         if (lhs_kind == Assignment) {
-            VERIFY(pattern_lhs);
-            return interpreter.vm().destructuring_assignment_evaluation(*pattern_lhs, next_value, global_object);
+            return interpreter.vm().destructuring_assignment_evaluation(pattern_lhs.verify_nonnull(), next_value, global_object);
         }
         VERIFY(expression_lhs && is<VariableDeclaration>(*expression_lhs));
         auto& for_declaration = static_cast<VariableDeclaration const&>(*expression_lhs);
-        auto& binding_pattern = for_declaration.declarations().first().target().get<NonnullRefPtr<BindingPattern>>();
+        auto& binding_pattern = for_declaration.declarations().first()->target().get<NonnullNodePtr<BindingPattern>>();
         VERIFY(lhs_kind == VarBinding || iteration_environment);
 
         // At this point iteration_environment is undefined if lhs_kind == VarBinding which means this does both
@@ -908,10 +907,10 @@ struct ForInOfHeadState {
 // 14.7.5.6 ForIn/OfHeadEvaluation ( uninitializedBoundNames, expr, iterationKind ), https://tc39.es/ecma262/#sec-runtime-semantics-forinofheadevaluation
 // This method combines ForInOfLoopEvaluation and ForIn/OfHeadEvaluation for similar reason as ForIn/OfBodyEvaluation, to prevent code duplication.
 // For the same reason we also skip step 6 and 7 of ForIn/OfHeadEvaluation as this is done by the appropriate for loop type.
-static ThrowCompletionOr<ForInOfHeadState> for_in_of_head_execute(Interpreter& interpreter, GlobalObject& global_object, Variant<NonnullRefPtr<ASTNode>, NonnullRefPtr<BindingPattern>> lhs, Expression const& rhs)
+static ThrowCompletionOr<ForInOfHeadState> for_in_of_head_execute(Interpreter& interpreter, GlobalObject& global_object, Variant<NonnullNodePtr<ASTNode>, NonnullNodePtr<BindingPattern>> lhs, Expression const& rhs)
 {
     ForInOfHeadState state(lhs);
-    if (auto* ast_ptr = lhs.get_pointer<NonnullRefPtr<ASTNode>>(); ast_ptr && is<VariableDeclaration>(*(*ast_ptr))) {
+    if (auto* ast_ptr = lhs.get_pointer<NonnullNodePtr<ASTNode>>(); ast_ptr && is<VariableDeclaration>(*(*ast_ptr))) {
         // Runtime Semantics: ForInOfLoopEvaluation, for any of:
         //  ForInOfStatement : for ( var ForBinding in Expression ) Statement
         //  ForInOfStatement : for ( ForDeclaration in Expression ) Statement
@@ -923,16 +922,16 @@ static ThrowCompletionOr<ForInOfHeadState> for_in_of_head_execute(Interpreter& i
 
         auto& variable_declaration = static_cast<VariableDeclaration const&>(*(*ast_ptr));
         VERIFY(variable_declaration.declarations().size() == 1);
-        state.destructuring = variable_declaration.declarations().first().target().has<NonnullRefPtr<BindingPattern>>();
+        state.destructuring = variable_declaration.declarations().first()->target().has<NonnullNodePtr<BindingPattern>>();
         if (variable_declaration.declaration_kind() == DeclarationKind::Var) {
             state.lhs_kind = ForInOfHeadState::VarBinding;
             auto& variable = variable_declaration.declarations().first();
             // B.3.5 Initializers in ForIn Statement Heads, https://tc39.es/ecma262/#sec-initializers-in-forin-statement-heads
-            if (variable.init()) {
-                VERIFY(variable.target().has<NonnullRefPtr<Identifier>>());
-                auto& binding_id = variable.target().get<NonnullRefPtr<Identifier>>()->string();
+            if (variable->init()) {
+                VERIFY(variable->target().has<NonnullNodePtr<Identifier>>());
+                auto& binding_id = variable->target().get<NonnullNodePtr<Identifier>>()->string();
                 auto reference = TRY(interpreter.vm().resolve_binding(binding_id));
-                auto result = TRY(interpreter.vm().named_evaluation_if_anonymous_function(global_object, *variable.init(), binding_id));
+                auto result = TRY(interpreter.vm().named_evaluation_if_anonymous_function(global_object, *variable->init(), binding_id));
                 TRY(reference.put_value(global_object, result));
             }
         } else {
@@ -1056,7 +1055,7 @@ Completion ForOfStatement::loop_evaluation(Interpreter& interpreter, GlobalObjec
 {
     InterpreterNodeScope node_scope { interpreter, *this };
 
-    auto for_of_head_state = TRY(for_in_of_head_execute(interpreter, global_object, m_lhs, m_rhs));
+    auto for_of_head_state = TRY(for_in_of_head_execute(interpreter, global_object, m_lhs, *m_rhs));
 
     auto rhs_result = for_of_head_state.rhs_value;
 
@@ -1121,7 +1120,7 @@ Completion ForAwaitOfStatement::loop_evaluation(Interpreter& interpreter, Global
 
     // 14.7.5.6 ForIn/OfHeadEvaluation ( uninitializedBoundNames, expr, iterationKind ), https://tc39.es/ecma262/#sec-runtime-semantics-forinofheadevaluation
     // Note: Performs only steps 1 through 5.
-    auto for_of_head_state = TRY(for_in_of_head_execute(interpreter, global_object, m_lhs, m_rhs));
+    auto for_of_head_state = TRY(for_in_of_head_execute(interpreter, global_object, m_lhs, *m_rhs));
 
     auto rhs_result = for_of_head_state.rhs_value;
 
@@ -1571,7 +1570,7 @@ ThrowCompletionOr<ClassElement::ClassValue> ClassMethod::class_element_evaluatio
 // 10.2.1.3 Runtime Semantics: EvaluateBody, https://tc39.es/ecma262/#sec-runtime-semantics-evaluatebody
 class ClassFieldInitializerStatement : public Statement {
 public:
-    ClassFieldInitializerStatement(SourceRange source_range, NonnullRefPtr<Expression> expression, FlyString field_name)
+    ClassFieldInitializerStatement(SourceRange source_range, NonnullNodePtr<Expression> expression, FlyString field_name)
         : Statement(source_range)
         , m_expression(move(expression))
         , m_class_field_identifier_name(move(field_name))
@@ -1591,7 +1590,7 @@ public:
         // 4. Else,
         //    a. Let rhs be the result of evaluating AssignmentExpression.
         //    b. Let value be ? GetValue(rhs).
-        auto value = TRY(interpreter.vm().named_evaluation_if_anonymous_function(global_object, m_expression, m_class_field_identifier_name));
+        auto value = TRY(interpreter.vm().named_evaluation_if_anonymous_function(global_object, *m_expression, m_class_field_identifier_name));
 
         // 5. Return Completion { [[Type]]: return, [[Value]]: value, [[Target]]: empty }.
         return { Completion::Type::Return, value, {} };
@@ -1604,7 +1603,7 @@ public:
     }
 
 private:
-    NonnullRefPtr<Expression> m_expression;
+    NonnullNodePtr<Expression> m_expression;
     FlyString m_class_field_identifier_name; // [[ClassFieldIdentifierName]]
 };
 
@@ -1624,8 +1623,8 @@ ThrowCompletionOr<ClassElement::ClassValue> ClassField::class_element_evaluation
             });
 
         // FIXME: A potential optimization is not creating the functions here since these are never directly accessible.
-        auto function_code = create_ast_node<ClassFieldInitializerStatement>(m_initializer->source_range(), copy_initializer.release_nonnull(), name);
-        initializer = ECMAScriptFunctionObject::create(interpreter.global_object(), String::empty(), String::empty(), *function_code, {}, 0, interpreter.lexical_environment(), interpreter.vm().running_execution_context().private_environment, FunctionKind::Normal, true, false, m_contains_direct_call_to_eval, false);
+        auto function_code = NodePool::the().create_ast_node<ClassFieldInitializerStatement>(m_initializer->source_range(), copy_initializer.verify_nonnull(), name);
+        initializer = ECMAScriptFunctionObject::create(interpreter.global_object(), String::empty(), String::empty(), function_code, {}, 0, interpreter.lexical_environment(), interpreter.vm().running_execution_context().private_environment, FunctionKind::Normal, true, false, m_contains_direct_call_to_eval, false);
         initializer->make_method(target);
     }
 
@@ -1667,7 +1666,7 @@ ThrowCompletionOr<ClassElement::ClassValue> StaticInitializer::class_element_eva
     // 4. Let formalParameters be an instance of the production FormalParameters : [empty] .
     // 5. Let bodyFunction be OrdinaryFunctionCreate(%Function.prototype%, sourceText, formalParameters, ClassStaticBlockBody, non-lexical-this, lex, privateScope).
     // Note: The function bodyFunction is never directly accessible to ECMAScript code.
-    auto* body_function = ECMAScriptFunctionObject::create(global_object, String::empty(), String::empty(), *m_function_body, {}, 0, lexical_environment, private_scope, FunctionKind::Normal, true, false, m_contains_direct_call_to_eval, false);
+    auto* body_function = ECMAScriptFunctionObject::create(global_object, String::empty(), String::empty(), m_function_body, {}, 0, lexical_environment, private_scope, FunctionKind::Normal, true, false, m_contains_direct_call_to_eval, false);
 
     // 6. Perform MakeMethod(bodyFunction, homeObject).
     body_function->make_method(home_object);
@@ -1737,7 +1736,7 @@ Completion ClassDeclaration::execute(Interpreter& interpreter, GlobalObject& glo
     InterpreterNodeScope node_scope { interpreter, *this };
 
     // 1. Perform ? BindingClassDeclarationEvaluation of this ClassDeclaration.
-    (void)TRY(binding_class_declaration_evaluation(interpreter, global_object, m_class_expression));
+    (void)TRY(binding_class_declaration_evaluation(interpreter, global_object, *m_class_expression));
 
     // 2. Return NormalCompletion(empty).
     return normal_completion({});
@@ -1763,7 +1762,7 @@ ThrowCompletionOr<ECMAScriptFunctionObject*> ClassExpression::class_definition_e
     auto* class_private_environment = new_private_environment(vm, outer_private_environment);
 
     for (auto const& element : m_elements) {
-        auto opt_private_name = element.private_bound_identifier();
+        auto opt_private_name = element->private_bound_identifier();
         if (opt_private_name.has_value())
             class_private_environment->add_private_name({}, opt_private_name.release_value());
     }
@@ -1840,10 +1839,10 @@ ThrowCompletionOr<ECMAScriptFunctionObject*> ClassExpression::class_definition_e
 
     for (auto const& element : m_elements) {
         // Note: All ClassElementEvaluation start with evaluating the name (or we fake it).
-        auto element_value = TRY(element.class_element_evaluation(interpreter, global_object, element.is_static() ? *class_constructor : *prototype));
+        auto element_value = TRY(element->class_element_evaluation(interpreter, global_object, element->is_static() ? *class_constructor : *prototype));
 
         if (element_value.has<PrivateElement>()) {
-            auto& container = element.is_static() ? static_private_methods : instance_private_methods;
+            auto& container = element->is_static() ? static_private_methods : instance_private_methods;
 
             auto& private_element = element_value.get<PrivateElement>();
 
@@ -1865,11 +1864,11 @@ ThrowCompletionOr<ECMAScriptFunctionObject*> ClassExpression::class_definition_e
             if (!added_to_existing)
                 container.append(move(element_value.get<PrivateElement>()));
         } else if (auto* class_field_definition_ptr = element_value.get_pointer<ClassElement::ClassFieldDefinition>()) {
-            if (element.is_static())
+            if (element->is_static())
                 static_elements.append(move(*class_field_definition_ptr));
             else
                 instance_fields.append(move(*class_field_definition_ptr));
-        } else if (element.class_element_kind() == ClassElement::ElementKind::StaticInitializer) {
+        } else if (element->class_element_kind() == ClassElement::ElementKind::StaticInitializer) {
             // We use Completion to hold the ClassStaticBlockDefinition Record.
             VERIFY(element_value.has<Completion>() && element_value.get<Completion>().value().has_value());
             auto& element_object = element_value.get<Completion>().value()->as_object();
@@ -1921,28 +1920,28 @@ void ScopeNode::dump(int indent) const
         print_indent(indent + 1);
         outln("(Lexical declarations)");
         for (auto& declaration : m_lexical_declarations)
-            declaration.dump(indent + 2);
+            declaration->dump(indent + 2);
     }
 
     if (!m_var_declarations.is_empty()) {
         print_indent(indent + 1);
         outln("(Variable declarations)");
         for (auto& declaration : m_var_declarations)
-            declaration.dump(indent + 2);
+            declaration->dump(indent + 2);
     }
 
     if (!m_functions_hoistable_with_annexB_extension.is_empty()) {
         print_indent(indent + 1);
         outln("(Hoisted functions via annexB extension)");
         for (auto& declaration : m_functions_hoistable_with_annexB_extension)
-            declaration.dump(indent + 2);
+            declaration->dump(indent + 2);
     }
 
     if (!m_children.is_empty()) {
         print_indent(indent + 1);
         outln("(Children)");
         for (auto& child : children())
-            child.dump(indent + 2);
+            child->dump(indent + 2);
     }
 }
 
@@ -2133,7 +2132,7 @@ void ClassExpression::dump(int indent) const
     print_indent(indent);
     outln("(Elements)");
     for (auto& method : m_elements)
-        method.dump(indent + 1);
+        method->dump(indent + 1);
 }
 
 void ClassMethod::dump(int indent) const
@@ -2231,7 +2230,7 @@ bool BindingPattern::contains_expression() const
     for (auto& entry : entries) {
         if (entry.initializer)
             return true;
-        if (auto binding_ptr = entry.alias.get_pointer<NonnullRefPtr<BindingPattern>>(); binding_ptr && (*binding_ptr)->contains_expression())
+        if (auto binding_ptr = entry.alias.get_pointer<NonnullNodePtr<BindingPattern>>(); binding_ptr && (*binding_ptr)->contains_expression())
             return true;
     }
     return false;
@@ -2249,10 +2248,10 @@ void BindingPattern::dump(int indent) const
         if (kind == Kind::Object) {
             print_indent(indent + 2);
             outln("(Identifier)");
-            if (entry.name.has<NonnullRefPtr<Identifier>>()) {
-                entry.name.get<NonnullRefPtr<Identifier>>()->dump(indent + 3);
+            if (entry.name.has<NonnullNodePtr<Identifier>>()) {
+                entry.name.get<NonnullNodePtr<Identifier>>()->dump(indent + 3);
             } else {
-                entry.name.get<NonnullRefPtr<Expression>>()->dump(indent + 3);
+                entry.name.get<NonnullNodePtr<Expression>>()->dump(indent + 3);
             }
         } else if (entry.is_elision()) {
             print_indent(indent + 2);
@@ -2262,12 +2261,12 @@ void BindingPattern::dump(int indent) const
 
         print_indent(indent + 2);
         outln("(Pattern{})", entry.is_rest ? " rest=true" : "");
-        if (entry.alias.has<NonnullRefPtr<Identifier>>()) {
-            entry.alias.get<NonnullRefPtr<Identifier>>()->dump(indent + 3);
-        } else if (entry.alias.has<NonnullRefPtr<BindingPattern>>()) {
-            entry.alias.get<NonnullRefPtr<BindingPattern>>()->dump(indent + 3);
-        } else if (entry.alias.has<NonnullRefPtr<MemberExpression>>()) {
-            entry.alias.get<NonnullRefPtr<MemberExpression>>()->dump(indent + 3);
+        if (entry.alias.has<NonnullNodePtr<Identifier>>()) {
+            entry.alias.get<NonnullNodePtr<Identifier>>()->dump(indent + 3);
+        } else if (entry.alias.has<NonnullNodePtr<BindingPattern>>()) {
+            entry.alias.get<NonnullNodePtr<BindingPattern>>()->dump(indent + 3);
+        } else if (entry.alias.has<NonnullNodePtr<MemberExpression>>()) {
+            entry.alias.get<NonnullNodePtr<MemberExpression>>()->dump(indent + 3);
         } else {
             print_indent(indent + 3);
             outln("<empty>");
@@ -2303,8 +2302,8 @@ void FunctionNode::dump(int indent, String const& class_name) const
                 [&](FlyString const& name) {
                     outln("{}", name);
                 },
-                [&](BindingPattern const& pattern) {
-                    pattern.dump(indent + 2);
+                [&](NonnullNodePtr<BindingPattern> const& pattern) {
+                    pattern->dump(indent + 2);
                 });
             if (parameter.default_value)
                 parameter.default_value->dump(indent + 3);
@@ -2513,7 +2512,7 @@ Completion AssignmentExpression::execute(Interpreter& interpreter, GlobalObject&
         // AssignmentExpression : LeftHandSideExpression = AssignmentExpression
         return m_lhs.visit(
             // 1. If LeftHandSideExpression is neither an ObjectLiteral nor an ArrayLiteral, then
-            [&](NonnullRefPtr<Expression> const& lhs) -> ThrowCompletionOr<Value> {
+            [&](NonnullNodePtr<Expression> const& lhs) -> ThrowCompletionOr<Value> {
                 // a. Let lref be the result of evaluating LeftHandSideExpression.
                 // b. ReturnIfAbrupt(lref).
                 auto reference = TRY(lhs->to_reference(interpreter, global_object));
@@ -2524,7 +2523,7 @@ Completion AssignmentExpression::execute(Interpreter& interpreter, GlobalObject&
                 if (lhs->is_identifier()) {
                     // i. Let rval be NamedEvaluation of AssignmentExpression with argument lref.[[ReferencedName]].
                     auto& identifier_name = static_cast<Identifier const&>(*lhs).string();
-                    rhs_result = TRY(interpreter.vm().named_evaluation_if_anonymous_function(global_object, m_rhs, identifier_name));
+                    rhs_result = TRY(interpreter.vm().named_evaluation_if_anonymous_function(global_object, *m_rhs, identifier_name));
                 }
                 // d. Else,
                 else {
@@ -2540,7 +2539,7 @@ Completion AssignmentExpression::execute(Interpreter& interpreter, GlobalObject&
                 return rhs_result;
             },
             // 2. Let assignmentPattern be the AssignmentPattern that is covered by LeftHandSideExpression.
-            [&](NonnullRefPtr<BindingPattern> const& pattern) -> ThrowCompletionOr<Value> {
+            [&](NonnullNodePtr<BindingPattern> const& pattern) -> ThrowCompletionOr<Value> {
                 // 3. Let rref be the result of evaluating AssignmentExpression.
                 // 4. Let rval be ? GetValue(rref).
                 auto rhs_result = TRY(m_rhs->execute(interpreter, global_object)).release_value();
@@ -2552,10 +2551,10 @@ Completion AssignmentExpression::execute(Interpreter& interpreter, GlobalObject&
                 return rhs_result;
             });
     }
-    VERIFY(m_lhs.has<NonnullRefPtr<Expression>>());
+    VERIFY(m_lhs.has<NonnullNodePtr<Expression>>());
 
     // 1. Let lref be the result of evaluating LeftHandSideExpression.
-    auto& lhs_expression = *m_lhs.get<NonnullRefPtr<Expression>>();
+    auto& lhs_expression = *m_lhs.get<NonnullNodePtr<Expression>>();
     auto reference = TRY(lhs_expression.to_reference(interpreter, global_object));
 
     // 2. Let lval be ? GetValue(lref).
@@ -2597,7 +2596,7 @@ Completion AssignmentExpression::execute(Interpreter& interpreter, GlobalObject&
         if (lhs_expression.is_identifier()) {
             // a. Let rval be NamedEvaluation of AssignmentExpression with argument lref.[[ReferencedName]].
             auto& identifier_name = static_cast<Identifier const&>(lhs_expression).string();
-            rhs_result = TRY(interpreter.vm().named_evaluation_if_anonymous_function(global_object, m_rhs, identifier_name));
+            rhs_result = TRY(interpreter.vm().named_evaluation_if_anonymous_function(global_object, *m_rhs, identifier_name));
         }
         // 6. Else,
         else {
@@ -2820,9 +2819,9 @@ Completion VariableDeclaration::execute(Interpreter& interpreter, GlobalObject& 
     InterpreterNodeScope node_scope { interpreter, *this };
 
     for (auto& declarator : m_declarations) {
-        if (auto* init = declarator.init()) {
-            TRY(declarator.target().visit(
-                [&](NonnullRefPtr<Identifier> const& id) -> ThrowCompletionOr<void> {
+        if (auto* init = declarator->init()) {
+            TRY(declarator->target().visit(
+                [&](NonnullNodePtr<Identifier> const& id) -> ThrowCompletionOr<void> {
                     auto reference = TRY(id->to_reference(interpreter, global_object));
                     auto initializer_result = TRY(interpreter.vm().named_evaluation_if_anonymous_function(global_object, *init, id->string()));
                     VERIFY(!initializer_result.is_empty());
@@ -2832,7 +2831,7 @@ Completion VariableDeclaration::execute(Interpreter& interpreter, GlobalObject& 
                     else
                         return reference.initialize_referenced_binding(global_object, initializer_result);
                 },
-                [&](NonnullRefPtr<BindingPattern> const& pattern) -> ThrowCompletionOr<void> {
+                [&](NonnullNodePtr<BindingPattern> const& pattern) -> ThrowCompletionOr<void> {
                     auto initializer_result = TRY(init->execute(interpreter, global_object)).release_value();
 
                     Environment* environment = m_declaration_kind == DeclarationKind::Var ? nullptr : interpreter.lexical_environment();
@@ -2840,8 +2839,8 @@ Completion VariableDeclaration::execute(Interpreter& interpreter, GlobalObject& 
                     return interpreter.vm().binding_initialization(pattern, initializer_result, environment, global_object);
                 }));
         } else if (m_declaration_kind != DeclarationKind::Var) {
-            VERIFY(declarator.target().has<NonnullRefPtr<Identifier>>());
-            auto& identifier = declarator.target().get<NonnullRefPtr<Identifier>>();
+            VERIFY(declarator->target().has<NonnullNodePtr<Identifier>>());
+            auto& identifier = declarator->target().get<NonnullNodePtr<Identifier>>();
             auto reference = TRY(identifier->to_reference(interpreter, global_object));
             TRY(reference.initialize_referenced_binding(global_object, js_undefined()));
         }
@@ -2860,11 +2859,11 @@ Completion VariableDeclarator::execute(Interpreter& interpreter, GlobalObject&) 
 void VariableDeclaration::for_each_bound_name(IteratorOrVoidFunction<FlyString const&> callback) const
 {
     for (auto& entry : declarations()) {
-        entry.target().template visit(
-            [&](const NonnullRefPtr<Identifier>& id) {
+        entry->target().template visit(
+            [&](const NonnullNodePtr<Identifier>& id) {
                 callback(id->string());
             },
-            [&](const NonnullRefPtr<BindingPattern>& binding) {
+            [&](const NonnullNodePtr<BindingPattern>& binding) {
                 binding->for_each_bound_name([&](const auto& name) {
                     callback(name);
                 });
@@ -2892,7 +2891,7 @@ void VariableDeclaration::dump(int indent) const
     outln("{}", declaration_kind_string);
 
     for (auto& declarator : m_declarations)
-        declarator.dump(indent + 1);
+        declarator->dump(indent + 1);
 }
 
 void VariableDeclarator::dump(int indent) const
@@ -2921,7 +2920,7 @@ void ObjectExpression::dump(int indent) const
 {
     ASTNode::dump(indent);
     for (auto& property : m_properties) {
-        property.dump(indent + 1);
+        property->dump(indent + 1);
     }
 }
 
@@ -2949,9 +2948,9 @@ Completion ObjectExpression::execute(Interpreter& interpreter, GlobalObject& glo
 
     // 2. Perform ? PropertyDefinitionEvaluation of PropertyDefinitionList with argument obj.
     for (auto& property : m_properties) {
-        auto key = TRY(property.key().execute(interpreter, global_object)).release_value();
+        auto key = TRY(property->key().execute(interpreter, global_object)).release_value();
 
-        if (property.type() == ObjectProperty::Type::Spread) {
+        if (property->type() == ObjectProperty::Type::Spread) {
             if (key.is_object() && is<Array>(key.as_object())) {
                 auto& array_to_spread = static_cast<Array&>(key.as_object());
                 for (auto& entry : array_to_spread.indexed_properties()) {
@@ -2976,21 +2975,21 @@ Completion ObjectExpression::execute(Interpreter& interpreter, GlobalObject& glo
             continue;
         }
 
-        auto value = TRY(property.value().execute(interpreter, global_object)).release_value();
+        auto value = TRY(property->value().execute(interpreter, global_object)).release_value();
 
-        if (value.is_function() && property.is_method())
+        if (value.is_function() && property->is_method())
             static_cast<ECMAScriptFunctionObject&>(value.as_function()).set_home_object(object);
 
         auto name = TRY(get_function_name(global_object, key));
-        if (property.type() == ObjectProperty::Type::Getter) {
+        if (property->type() == ObjectProperty::Type::Getter) {
             name = String::formatted("get {}", name);
-        } else if (property.type() == ObjectProperty::Type::Setter) {
+        } else if (property->type() == ObjectProperty::Type::Setter) {
             name = String::formatted("set {}", name);
         }
 
         update_function_name(value, name);
 
-        switch (property.type()) {
+        switch (property->type()) {
         case ObjectProperty::Type::Getter:
             VERIFY(value.is_function());
             object->define_direct_accessor(TRY(PropertyKey::from_value(global_object, key)), &value.as_function(), nullptr, Attribute::Configurable | Attribute::Enumerable);
@@ -3094,26 +3093,26 @@ ThrowCompletionOr<OptionalChain::ReferenceAndValue> OptionalChain::to_reference_
             return ReferenceAndValue { {}, js_undefined() };
 
         auto expression = reference.visit(
-            [&](Call const& call) -> NonnullRefPtr<Expression> {
-                return create_ast_node<CallExpression>(source_range(),
-                    create_ast_node<SyntheticReferenceExpression>(source_range(), base_reference, base),
+            [&](Call const& call) -> NonnullNodePtr<Expression> {
+                return NodePool::the().create_ast_node<CallExpression>(source_range(),
+                    NodePool::the().create_ast_node<SyntheticReferenceExpression>(source_range(), base_reference, base),
                     call.arguments);
             },
-            [&](ComputedReference const& ref) -> NonnullRefPtr<Expression> {
-                return create_ast_node<MemberExpression>(source_range(),
-                    create_ast_node<SyntheticReferenceExpression>(source_range(), base_reference, base),
+            [&](ComputedReference const& ref) -> NonnullNodePtr<Expression> {
+                return NodePool::the().create_ast_node<MemberExpression>(source_range(),
+                    NodePool::the().create_ast_node<SyntheticReferenceExpression>(source_range(), base_reference, base),
                     ref.expression,
                     true);
             },
-            [&](MemberReference const& ref) -> NonnullRefPtr<Expression> {
-                return create_ast_node<MemberExpression>(source_range(),
-                    create_ast_node<SyntheticReferenceExpression>(source_range(), base_reference, base),
+            [&](MemberReference const& ref) -> NonnullNodePtr<Expression> {
+                return NodePool::the().create_ast_node<MemberExpression>(source_range(),
+                    NodePool::the().create_ast_node<SyntheticReferenceExpression>(source_range(), base_reference, base),
                     ref.identifier,
                     false);
             },
-            [&](PrivateMemberReference const& ref) -> NonnullRefPtr<Expression> {
-                return create_ast_node<MemberExpression>(source_range(),
-                    create_ast_node<SyntheticReferenceExpression>(source_range(), base_reference, base),
+            [&](PrivateMemberReference const& ref) -> NonnullNodePtr<Expression> {
+                return NodePool::the().create_ast_node<MemberExpression>(source_range(),
+                    NodePool::the().create_ast_node<SyntheticReferenceExpression>(source_range(), base_reference, base),
                     ref.private_identifier,
                     false);
             });
@@ -3393,7 +3392,7 @@ void TemplateLiteral::dump(int indent) const
 {
     ASTNode::dump(indent);
     for (auto& expression : m_expressions)
-        expression.dump(indent + 1);
+        expression->dump(indent + 1);
 }
 
 // 13.2.8.5 Runtime Semantics: Evaluation, https://tc39.es/ecma262/#sec-template-literals-runtime-semantics-evaluation
@@ -3408,7 +3407,7 @@ Completion TemplateLiteral::execute(Interpreter& interpreter, GlobalObject& glob
 
         // 2. Let subRef be the result of evaluating Expression.
         // 3. Let sub be ? GetValue(subRef).
-        auto sub = TRY(expression.execute(interpreter, global_object)).release_value();
+        auto sub = TRY(expression->execute(interpreter, global_object)).release_value();
 
         // 4. Let middle be ? ToString(sub).
         auto string = TRY(sub.to_string(global_object));
@@ -3445,7 +3444,7 @@ Completion TaggedTemplateLiteral::execute(Interpreter& interpreter, GlobalObject
     MarkedValueList arguments(vm.heap());
     arguments.append(strings);
     for (size_t i = 0; i < expressions.size(); ++i) {
-        auto value = TRY(expressions[i].execute(interpreter, global_object)).release_value();
+        auto value = TRY(expressions[i]->execute(interpreter, global_object)).release_value();
         // tag`${foo}`             -> "", foo, ""                -> tag(["", ""], foo)
         // tag`foo${bar}baz${qux}` -> "foo", bar, "baz", qux, "" -> tag(["foo", "baz", ""], bar, qux)
         if (i % 2 == 0) {
@@ -3457,7 +3456,7 @@ Completion TaggedTemplateLiteral::execute(Interpreter& interpreter, GlobalObject
 
     auto* raw_strings = MUST(Array::create(global_object, 0));
     for (auto& raw_string : m_template_literal->raw_strings()) {
-        auto value = TRY(raw_string.execute(interpreter, global_object)).release_value();
+        auto value = TRY(raw_string->execute(interpreter, global_object)).release_value();
         raw_strings->indexed_properties().append(value);
     }
     strings->define_direct_property(vm.names.raw, raw_strings, 0);
@@ -3494,7 +3493,7 @@ void CatchClause::dump(int indent) const
             else
                 outln("CatchClause ({})", parameter);
         },
-        [&](NonnullRefPtr<BindingPattern> const& pattern) {
+        [&](NonnullNodePtr<BindingPattern> const& pattern) {
             outln("CatchClause");
             print_indent(indent);
             outln("(Parameter)");
@@ -3531,7 +3530,7 @@ Completion TryStatement::execute(Interpreter& interpreter, GlobalObject& global_
                 // a. Perform ! catchEnv.CreateMutableBinding(argName, false).
                 MUST(catch_environment->create_mutable_binding(global_object, parameter, false));
             },
-            [&](NonnullRefPtr<BindingPattern> const& pattern) {
+            [&](NonnullNodePtr<BindingPattern> const& pattern) {
                 // 3. For each element argName of the BoundNames of CatchParameter, do
                 pattern->for_each_bound_name([&](auto& name) {
                     // a. Perform ! catchEnv.CreateMutableBinding(argName, false).
@@ -3547,7 +3546,7 @@ Completion TryStatement::execute(Interpreter& interpreter, GlobalObject& global_
             [&](FlyString const& parameter) {
                 return catch_environment->initialize_binding(global_object, parameter, thrown_value);
             },
-            [&](NonnullRefPtr<BindingPattern> const& pattern) {
+            [&](NonnullNodePtr<BindingPattern> const& pattern) {
                 return vm.binding_initialization(pattern, thrown_value, catch_environment, global_object);
             });
 
@@ -3666,11 +3665,11 @@ Completion SwitchStatement::execute_impl(Interpreter& interpreter, GlobalObject&
     // 14.12.3 CaseClauseIsSelected ( C, input ), https://tc39.es/ecma262/#sec-runtime-semantics-caseclauseisselected
     auto case_clause_is_selected = [&](auto const& case_clause, auto input) -> ThrowCompletionOr<bool> {
         // 1. Assert: C is an instance of the production CaseClause : case Expression : StatementList[opt] .
-        VERIFY(case_clause.test());
+        VERIFY(case_clause->test());
 
         // 2. Let exprRef be the result of evaluating the Expression of C.
         // 3. Let clauseSelector be ? GetValue(exprRef).
-        auto clause_selector = TRY(case_clause.test()->execute(interpreter, global_object)).release_value();
+        auto clause_selector = TRY(case_clause->test()->execute(interpreter, global_object)).release_value();
 
         // 4. Return IsStrictlyEqual(input, clauseSelector).
         return is_strictly_equal(input, clause_selector);
@@ -3684,11 +3683,11 @@ Completion SwitchStatement::execute_impl(Interpreter& interpreter, GlobalObject&
             return normal_completion(js_undefined());
         }
 
-        NonnullRefPtrVector<SwitchCase> case_clauses_1;
-        NonnullRefPtrVector<SwitchCase> case_clauses_2;
-        RefPtr<SwitchCase> default_clause;
+        Vector<NonnullNodePtr<SwitchCase>> case_clauses_1;
+        Vector<NonnullNodePtr<SwitchCase>> case_clauses_2;
+        NodePtr<SwitchCase> default_clause;
         for (auto const& switch_case : m_cases) {
-            if (!switch_case.test())
+            if (!switch_case->test())
                 default_clause = switch_case;
             else if (!default_clause)
                 case_clauses_1.append(switch_case);
@@ -3721,7 +3720,7 @@ Completion SwitchStatement::execute_impl(Interpreter& interpreter, GlobalObject&
                 // b. If found is true, then
                 if (found) {
                     // i. Let R be the result of evaluating C.
-                    auto result = case_clause.evaluate_statements(interpreter, global_object);
+                    auto result = case_clause->evaluate_statements(interpreter, global_object);
 
                     // ii. If R.[[Value]] is not empty, set V to R.[[Value]].
                     if (result.value().has_value())
@@ -3736,8 +3735,9 @@ Completion SwitchStatement::execute_impl(Interpreter& interpreter, GlobalObject&
             // 5. Return NormalCompletion(V).
             return normal_completion(last_value);
         }
+
         // CaseBlock : { CaseClauses[opt] DefaultClause CaseClauses[opt] }
-        else {
+        {
             // 1. Let V be undefined.
             auto last_value = js_undefined();
 
@@ -3761,7 +3761,7 @@ Completion SwitchStatement::execute_impl(Interpreter& interpreter, GlobalObject&
                 // b. If found is true, then
                 if (found) {
                     // i. Let R be the result of evaluating C.
-                    auto result = case_clause.evaluate_statements(interpreter, global_object);
+                    auto result = case_clause->evaluate_statements(interpreter, global_object);
 
                     // ii. If R.[[Value]] is not empty, set V to R.[[Value]].
                     if (result.value().has_value())
@@ -3795,7 +3795,7 @@ Completion SwitchStatement::execute_impl(Interpreter& interpreter, GlobalObject&
                     // ii. If foundInB is true, then
                     if (found_in_b) {
                         // 1. Let R be the result of evaluating CaseClause C.
-                        auto result = case_clause.evaluate_statements(interpreter, global_object);
+                        auto result = case_clause->evaluate_statements(interpreter, global_object);
 
                         // 2. If R.[[Value]] is not empty, set V to R.[[Value]].
                         if (result.value().has_value())
@@ -3827,7 +3827,7 @@ Completion SwitchStatement::execute_impl(Interpreter& interpreter, GlobalObject&
             // 15. For each CaseClause C of B, do
             for (auto const& case_clause : case_clauses_2) {
                 // a. Let R be the result of evaluating CaseClause C.
-                result = case_clause.evaluate_statements(interpreter, global_object);
+                result = case_clause->evaluate_statements(interpreter, global_object);
 
                 // b. If R.[[Value]] is not empty, set V to R.[[Value]].
                 if (result.value().has_value())
@@ -3922,9 +3922,8 @@ void SwitchStatement::dump(int indent) const
 {
     ASTNode::dump(indent);
     m_discriminant->dump(indent + 1);
-    for (auto& switch_case : m_cases) {
-        switch_case.dump(indent + 1);
-    }
+    for (auto& switch_case : m_cases)
+        switch_case->dump(indent + 1);
 }
 
 void SwitchCase::dump(int indent) const
@@ -3982,7 +3981,7 @@ void SequenceExpression::dump(int indent) const
 {
     ASTNode::dump(indent);
     for (auto& expression : m_expressions)
-        expression.dump(indent + 1);
+        expression->dump(indent + 1);
 }
 
 // 13.16.1 Runtime Semantics: Evaluation, https://tc39.es/ecma262/#sec-comma-operator-runtime-semantics-evaluation
@@ -3997,7 +3996,7 @@ Completion SequenceExpression::execute(Interpreter& interpreter, GlobalObject& g
     // 4. Return ? GetValue(rref).
     Value last_value;
     for (auto const& expression : m_expressions)
-        last_value = TRY(expression.execute(interpreter, global_object)).release_value();
+        last_value = TRY(expression->execute(interpreter, global_object)).release_value();
     return { move(last_value) };
 }
 
@@ -4026,7 +4025,7 @@ Completion DebuggerStatement::execute(Interpreter& interpreter, GlobalObject&) c
 void ScopeNode::for_each_lexically_scoped_declaration(IteratorOrVoidFunction<Declaration const&>&& callback) const
 {
     for (auto& declaration : m_lexical_declarations) {
-        if (callback(declaration) == IterationDecision::Break)
+        if (callback(*declaration) == IterationDecision::Break)
             break;
     }
 }
@@ -4035,7 +4034,7 @@ void ScopeNode::for_each_lexically_declared_name(IteratorOrVoidFunction<FlyStrin
 {
     auto running = true;
     for (auto& declaration : m_lexical_declarations) {
-        declaration.for_each_bound_name([&](auto const& name) {
+        declaration->for_each_bound_name([&](auto const& name) {
             if (callback(name) == IterationDecision::Break) {
                 running = false;
                 return IterationDecision::Break;
@@ -4051,7 +4050,7 @@ void ScopeNode::for_each_var_declared_name(IteratorOrVoidFunction<FlyString cons
 {
     auto running = true;
     for (auto& declaration : m_var_declarations) {
-        declaration.for_each_bound_name([&](auto const& name) {
+        declaration->for_each_bound_name([&](auto const& name) {
             if (callback(name) == IterationDecision::Break) {
                 running = false;
                 return IterationDecision::Break;
@@ -4067,8 +4066,8 @@ void ScopeNode::for_each_var_function_declaration_in_reverse_order(IteratorOrVoi
 {
     for (ssize_t i = m_var_declarations.size() - 1; i >= 0; i--) {
         auto& declaration = m_var_declarations[i];
-        if (is<FunctionDeclaration>(declaration)) {
-            if (callback(static_cast<FunctionDeclaration const&>(declaration)) == IterationDecision::Break)
+        if (is<FunctionDeclaration>(*declaration)) {
+            if (callback(static_cast<FunctionDeclaration const&>(*declaration)) == IterationDecision::Break)
                 break;
         }
     }
@@ -4077,9 +4076,9 @@ void ScopeNode::for_each_var_function_declaration_in_reverse_order(IteratorOrVoi
 void ScopeNode::for_each_var_scoped_variable_declaration(IteratorOrVoidFunction<VariableDeclaration const&>&& callback) const
 {
     for (auto& declaration : m_var_declarations) {
-        if (!is<FunctionDeclaration>(declaration)) {
-            VERIFY(is<VariableDeclaration>(declaration));
-            if (callback(static_cast<VariableDeclaration const&>(declaration)) == IterationDecision::Break)
+        if (!is<FunctionDeclaration>(*declaration)) {
+            VERIFY(is<VariableDeclaration>(*declaration));
+            if (callback(static_cast<VariableDeclaration const&>(*declaration)) == IterationDecision::Break)
                 break;
         }
     }
@@ -4089,22 +4088,22 @@ void ScopeNode::for_each_function_hoistable_with_annexB_extension(IteratorOrVoid
 {
     for (auto& function : m_functions_hoistable_with_annexB_extension) {
         // We need const_cast here since it might have to set a property on function declaration.
-        if (callback(const_cast<FunctionDeclaration&>(function)) == IterationDecision::Break)
+        if (callback(const_cast<FunctionDeclaration&>(*function)) == IterationDecision::Break)
             break;
     }
 }
 
-void ScopeNode::add_lexical_declaration(NonnullRefPtr<Declaration> declaration)
+void ScopeNode::add_lexical_declaration(NonnullNodePtr<Declaration> declaration)
 {
     m_lexical_declarations.append(move(declaration));
 }
 
-void ScopeNode::add_var_scoped_declaration(NonnullRefPtr<Declaration> declaration)
+void ScopeNode::add_var_scoped_declaration(NonnullNodePtr<Declaration> declaration)
 {
     m_var_declarations.append(move(declaration));
 }
 
-void ScopeNode::add_hoisted_function(NonnullRefPtr<FunctionDeclaration> declaration)
+void ScopeNode::add_hoisted_function(NonnullNodePtr<FunctionDeclaration> declaration)
 {
     m_functions_hoistable_with_annexB_extension.append(move(declaration));
 }
@@ -4152,7 +4151,7 @@ Completion ExportStatement::execute(Interpreter& interpreter, GlobalObject& glob
         auto const& class_declaration = static_cast<ClassDeclaration const&>(*m_statement);
 
         // 1. Let value be ? BindingClassDeclarationEvaluation of ClassDeclaration.
-        auto value = TRY(binding_class_declaration_evaluation(interpreter, global_object, class_declaration.m_class_expression));
+        auto value = TRY(binding_class_declaration_evaluation(interpreter, global_object, *class_declaration.m_class_expression));
 
         // 2. Let className be the sole element of BoundNames of ClassDeclaration.
         // 3. If className is "*default*", then
@@ -4298,7 +4297,7 @@ void ScopeNode::block_declaration_instantiation(GlobalObject& global_object, Env
 
         if (is<FunctionDeclaration>(declaration)) {
             auto& function_declaration = static_cast<FunctionDeclaration const&>(declaration);
-            auto* function = ECMAScriptFunctionObject::create(global_object, function_declaration.name(), function_declaration.source_text(), function_declaration.body(), function_declaration.parameters(), function_declaration.function_length(), environment, private_environment, function_declaration.kind(), function_declaration.is_strict_mode(), function_declaration.might_need_arguments_object(), function_declaration.contains_direct_call_to_eval());
+            auto* function = ECMAScriptFunctionObject::create(global_object, function_declaration.name(), function_declaration.source_text(), function_declaration.body_ptr(), function_declaration.parameters(), function_declaration.function_length(), environment, private_environment, function_declaration.kind(), function_declaration.is_strict_mode(), function_declaration.might_need_arguments_object(), function_declaration.contains_direct_call_to_eval());
             VERIFY(is<DeclarativeEnvironment>(*environment));
             static_cast<DeclarativeEnvironment&>(*environment).initialize_or_set_mutable_binding({}, global_object, function_declaration.name(), function);
         }
@@ -4445,7 +4444,7 @@ ThrowCompletionOr<void> Program::global_declaration_instantiation(Interpreter& i
     });
 
     for (auto& declaration : functions_to_initialize) {
-        auto* function = ECMAScriptFunctionObject::create(global_object, declaration.name(), declaration.source_text(), declaration.body(), declaration.parameters(), declaration.function_length(), &global_environment, private_environment, declaration.kind(), declaration.is_strict_mode(), declaration.might_need_arguments_object(), declaration.contains_direct_call_to_eval());
+        auto* function = ECMAScriptFunctionObject::create(global_object, declaration.name(), declaration.source_text(), declaration.body_ptr(), declaration.parameters(), declaration.function_length(), &global_environment, private_environment, declaration.kind(), declaration.is_strict_mode(), declaration.might_need_arguments_object(), declaration.contains_direct_call_to_eval());
         TRY(global_environment.create_global_function_binding(declaration.name(), function, false));
     }
 

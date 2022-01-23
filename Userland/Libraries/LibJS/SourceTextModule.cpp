@@ -31,16 +31,16 @@ static Vector<FlyString> module_requests(Program const& program)
     Vector<RequestedModuleAndSourceIndex> requested_modules_with_indices;
 
     for (auto const& import_statement : program.imports()) {
-        requested_modules_with_indices.append({ import_statement.module_request().module_specifier.view(),
-            import_statement.source_range().start.offset });
+        requested_modules_with_indices.append({ import_statement->module_request().module_specifier.view(),
+            import_statement->source_range().start.offset });
     }
 
     for (auto const& export_statement : program.exports()) {
-        for (auto const& export_entry : export_statement.entries()) {
+        for (auto const& export_entry : export_statement->entries()) {
             if (export_entry.kind != ExportStatement::ExportEntry::Kind::ModuleRequest)
                 continue;
             requested_modules_with_indices.append({ export_entry.module_request.module_specifier.view(),
-                export_statement.source_range().start.offset });
+                export_statement->source_range().start.offset });
         }
     }
 
@@ -55,10 +55,10 @@ static Vector<FlyString> module_requests(Program const& program)
     return requested_modules_in_source_order;
 }
 
-SourceTextModule::SourceTextModule(Realm& realm, StringView filename, bool has_top_level_await, NonnullRefPtr<Program> body, Vector<FlyString> requested_modules,
+SourceTextModule::SourceTextModule(Realm& realm, StringView filename, bool has_top_level_await, NonnullNodePtr<Program> body, Vector<FlyString> requested_modules,
     Vector<ImportEntry> import_entries, Vector<ExportEntry> local_export_entries,
     Vector<ExportEntry> indirect_export_entries, Vector<ExportEntry> star_export_entries,
-    RefPtr<ExportStatement> default_export)
+    NodePtr<ExportStatement> default_export)
     : CyclicModule(realm, filename, has_top_level_await, move(requested_modules))
     , m_ecmascript_code(move(body))
     , m_execution_context(realm.heap())
@@ -87,7 +87,7 @@ Result<NonnullRefPtr<SourceTextModule>, Vector<Parser::Error>> SourceTextModule:
     // 4. Let importEntries be ImportEntries of body.
     Vector<ImportEntry> import_entries;
     for (auto const& import_statement : body->imports())
-        import_entries.extend(import_statement.entries());
+        import_entries.extend(import_statement->entries());
 
     // 5. Let importedBoundNames be ImportedLocalNames(importEntries).
     // Note: Since we have to potentially extract the import entry we just use importEntries
@@ -103,18 +103,18 @@ Result<NonnullRefPtr<SourceTextModule>, Vector<Parser::Error>> SourceTextModule:
     Vector<ExportEntry> star_export_entries;
 
     // Note: Not in the spec but makes it easier to find the default.
-    RefPtr<ExportStatement> default_export;
+    NodePtr<ExportStatement> default_export;
 
     // 9. Let exportEntries be ExportEntries of body.
     // 10. For each ExportEntry Record ee of exportEntries, do
     for (auto const& export_statement : body->exports()) {
 
-        if (export_statement.is_default_export()) {
+        if (export_statement->is_default_export()) {
             VERIFY(!default_export);
-            VERIFY(export_statement.entries().size() == 1);
-            VERIFY(export_statement.has_statement());
+            VERIFY(export_statement->entries().size() == 1);
+            VERIFY(export_statement->has_statement());
 
-            auto const& entry = export_statement.entries()[0];
+            auto const& entry = export_statement->entries()[0];
             VERIFY(entry.kind == ExportStatement::ExportEntry::Kind::LocalExport);
             VERIFY(import_entries.find_if(
                                      [&](ImportEntry const& import_entry) {
@@ -124,7 +124,7 @@ Result<NonnullRefPtr<SourceTextModule>, Vector<Parser::Error>> SourceTextModule:
             default_export = export_statement;
         }
 
-        for (auto const& export_entry : export_statement.entries()) {
+        for (auto const& export_entry : export_statement->entries()) {
 
             // a. If ee.[[ModuleRequest]] is null, then
             if (export_entry.kind == ExportStatement::ExportEntry::Kind::LocalExport) {
@@ -410,7 +410,7 @@ Completion SourceTextModule::initialize_environment(VM& vm)
                 auto const& function_declaration = static_cast<FunctionDeclaration const&>(declaration);
 
                 // 1. Let fo be InstantiateFunctionObject of d with arguments env and privateEnv.
-                auto* function = ECMAScriptFunctionObject::create(global_object, function_declaration.name(), function_declaration.source_text(), function_declaration.body(), function_declaration.parameters(), function_declaration.function_length(), environment, private_environment, function_declaration.kind(), function_declaration.is_strict_mode(), function_declaration.might_need_arguments_object(), function_declaration.contains_direct_call_to_eval());
+                auto* function = ECMAScriptFunctionObject::create(global_object, function_declaration.name(), function_declaration.source_text(), function_declaration.body_ptr(), function_declaration.parameters(), function_declaration.function_length(), environment, private_environment, function_declaration.kind(), function_declaration.is_strict_mode(), function_declaration.might_need_arguments_object(), function_declaration.contains_direct_call_to_eval());
 
                 // 2. Call env.InitializeBinding(dn, fo).
                 environment->initialize_binding(global_object, name, function);

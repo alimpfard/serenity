@@ -14,6 +14,7 @@
 #include <AK/RefCounted.h>
 #include <AK/StackInfo.h>
 #include <AK/Variant.h>
+#include <LibJS/Forward.h>
 #include <LibJS/Heap/Heap.h>
 #include <LibJS/Runtime/CommonPropertyNames.h>
 #include <LibJS/Runtime/Completion.h>
@@ -218,9 +219,9 @@ public:
 
     CustomData* custom_data() { return m_custom_data; }
 
-    ThrowCompletionOr<void> destructuring_assignment_evaluation(NonnullRefPtr<BindingPattern> const& target, Value value, GlobalObject& global_object);
+    ThrowCompletionOr<void> destructuring_assignment_evaluation(NonnullNodePtr<BindingPattern> const& target, Value value, GlobalObject& global_object);
     ThrowCompletionOr<void> binding_initialization(FlyString const& target, Value value, Environment* environment, GlobalObject& global_object);
-    ThrowCompletionOr<void> binding_initialization(NonnullRefPtr<BindingPattern> const& target, Value value, Environment* environment, GlobalObject& global_object);
+    ThrowCompletionOr<void> binding_initialization(NonnullNodePtr<BindingPattern> const& target, Value value, Environment* environment, GlobalObject& global_object);
 
     ThrowCompletionOr<Value> named_evaluation_if_anonymous_function(GlobalObject& global_object, ASTNode const& expression, FlyString const& name);
 

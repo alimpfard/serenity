@@ -573,14 +573,14 @@ ThrowCompletionOr<Value> perform_eval(Value x, GlobalObject& caller_realm, Calle
         vm.pop_execution_context();
     };
 
-    TRY(eval_declaration_instantiation(vm, eval_realm->global_object(), program, variable_environment, lexical_environment, private_environment, strict_eval));
+    TRY(eval_declaration_instantiation(vm, eval_realm->global_object(), *program, variable_environment, lexical_environment, private_environment, strict_eval));
 
     TemporaryChange scope_change_strict(vm.running_execution_context().is_strict_mode, strict_eval);
 
     Optional<Value> eval_result;
 
     if (auto* bytecode_interpreter = Bytecode::Interpreter::current()) {
-        auto executable = JS::Bytecode::Generator::generate(program);
+        auto executable = JS::Bytecode::Generator::generate(*program);
         executable.name = "eval"sv;
         if (JS::Bytecode::g_dump_bytecode)
             executable.dump();
@@ -760,7 +760,7 @@ ThrowCompletionOr<void> eval_declaration_instantiation(VM& vm, GlobalObject& glo
         return throw_completion(exception->value());
 
     for (auto& declaration : functions_to_initialize) {
-        auto* function = ECMAScriptFunctionObject::create(global_object, declaration.name(), declaration.source_text(), declaration.body(), declaration.parameters(), declaration.function_length(), lexical_environment, private_environment, declaration.kind(), declaration.is_strict_mode(), declaration.might_need_arguments_object());
+        auto* function = ECMAScriptFunctionObject::create(global_object, declaration.name(), declaration.source_text(), declaration.body_ptr(), declaration.parameters(), declaration.function_length(), lexical_environment, private_environment, declaration.kind(), declaration.is_strict_mode(), declaration.might_need_arguments_object());
         if (global_var_environment) {
             TRY(global_var_environment->create_global_function_binding(declaration.name(), function, true));
         } else {

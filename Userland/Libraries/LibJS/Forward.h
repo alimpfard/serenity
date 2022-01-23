@@ -236,6 +236,12 @@ class Handle;
 template<class T>
 class MarkedVector;
 
+template<typename T>
+class NonnullNodePtr;
+
+template<typename T>
+class NodePtr;
+
 namespace Bytecode {
 class BasicBlock;
 struct Executable;

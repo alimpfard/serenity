@@ -8,7 +8,6 @@
 #pragma once
 
 #include <AK/HashTable.h>
-#include <AK/NonnullRefPtr.h>
 #include <AK/StringBuilder.h>
 #include <LibJS/AST.h>
 #include <LibJS/Lexer.h>
@@ -42,10 +41,10 @@ class Parser {
 public:
     explicit Parser(Lexer lexer, Program::Type program_type = Program::Type::Script);
 
-    NonnullRefPtr<Program> parse_program(bool starts_in_strict_mode = false);
+    NonnullNodePtr<Program> parse_program(bool starts_in_strict_mode = false);
 
     template<typename FunctionNodeType>
-    NonnullRefPtr<FunctionNodeType> parse_function_node(u8 parse_options = FunctionNodeParseOptions::CheckForFunctionAndName, Optional<Position> const& function_start = {});
+    NonnullNodePtr<FunctionNodeType> parse_function_node(u8 parse_options = FunctionNodeParseOptions::CheckForFunctionAndName, Optional<Position> const& function_start = {});
     Vector<FunctionNode::Parameter> parse_formal_parameters(int& function_length, u8 parse_options = 0);
 
     enum class AllowDuplicates {
@@ -58,73 +57,73 @@ public:
         No
     };
 
-    RefPtr<BindingPattern> parse_binding_pattern(AllowDuplicates is_var_declaration = AllowDuplicates::No, AllowMemberExpressions allow_member_expressions = AllowMemberExpressions::No);
+    NodePtr<BindingPattern> parse_binding_pattern(AllowDuplicates is_var_declaration = AllowDuplicates::No, AllowMemberExpressions allow_member_expressions = AllowMemberExpressions::No);
 
     struct PrimaryExpressionParseResult {
-        NonnullRefPtr<Expression> result;
+        NonnullNodePtr<Expression> result;
         bool should_continue_parsing_as_expression { true };
     };
 
-    NonnullRefPtr<Declaration> parse_declaration();
+    NonnullNodePtr<Declaration> parse_declaration();
 
     enum class AllowLabelledFunction {
         No,
         Yes
     };
 
-    NonnullRefPtr<Statement> parse_statement(AllowLabelledFunction allow_labelled_function = AllowLabelledFunction::No);
-    NonnullRefPtr<BlockStatement> parse_block_statement();
-    NonnullRefPtr<FunctionBody> parse_function_body(Vector<FunctionDeclaration::Parameter> const& parameters, FunctionKind function_kind, bool& contains_direct_call_to_eval);
-    NonnullRefPtr<ReturnStatement> parse_return_statement();
-    NonnullRefPtr<VariableDeclaration> parse_variable_declaration(bool for_loop_variable_declaration = false);
-    NonnullRefPtr<Statement> parse_for_statement();
+    NonnullNodePtr<Statement> parse_statement(AllowLabelledFunction allow_labelled_function = AllowLabelledFunction::No);
+    NonnullNodePtr<BlockStatement> parse_block_statement();
+    NonnullNodePtr<FunctionBody> parse_function_body(Vector<FunctionDeclaration::Parameter> const& parameters, FunctionKind function_kind, bool& contains_direct_call_to_eval);
+    NonnullNodePtr<ReturnStatement> parse_return_statement();
+    NonnullNodePtr<VariableDeclaration> parse_variable_declaration(bool for_loop_variable_declaration = false);
+    NonnullNodePtr<Statement> parse_for_statement();
 
     enum class IsForAwaitLoop {
         No,
         Yes
     };
 
-    NonnullRefPtr<Statement> parse_for_in_of_statement(NonnullRefPtr<ASTNode> lhs, IsForAwaitLoop is_await);
-    NonnullRefPtr<IfStatement> parse_if_statement();
-    NonnullRefPtr<ThrowStatement> parse_throw_statement();
-    NonnullRefPtr<TryStatement> parse_try_statement();
-    NonnullRefPtr<CatchClause> parse_catch_clause();
-    NonnullRefPtr<SwitchStatement> parse_switch_statement();
-    NonnullRefPtr<SwitchCase> parse_switch_case();
-    NonnullRefPtr<BreakStatement> parse_break_statement();
-    NonnullRefPtr<ContinueStatement> parse_continue_statement();
-    NonnullRefPtr<DoWhileStatement> parse_do_while_statement();
-    NonnullRefPtr<WhileStatement> parse_while_statement();
-    NonnullRefPtr<WithStatement> parse_with_statement();
-    NonnullRefPtr<DebuggerStatement> parse_debugger_statement();
-    NonnullRefPtr<ConditionalExpression> parse_conditional_expression(NonnullRefPtr<Expression> test);
-    NonnullRefPtr<OptionalChain> parse_optional_chain(NonnullRefPtr<Expression> base);
-    NonnullRefPtr<Expression> parse_expression(int min_precedence, Associativity associate = Associativity::Right, const Vector<TokenType>& forbidden = {});
+    NonnullNodePtr<Statement> parse_for_in_of_statement(NonnullNodePtr<ASTNode> lhs, IsForAwaitLoop is_await);
+    NonnullNodePtr<IfStatement> parse_if_statement();
+    NonnullNodePtr<ThrowStatement> parse_throw_statement();
+    NonnullNodePtr<TryStatement> parse_try_statement();
+    NonnullNodePtr<CatchClause> parse_catch_clause();
+    NonnullNodePtr<SwitchStatement> parse_switch_statement();
+    NonnullNodePtr<SwitchCase> parse_switch_case();
+    NonnullNodePtr<BreakStatement> parse_break_statement();
+    NonnullNodePtr<ContinueStatement> parse_continue_statement();
+    NonnullNodePtr<DoWhileStatement> parse_do_while_statement();
+    NonnullNodePtr<WhileStatement> parse_while_statement();
+    NonnullNodePtr<WithStatement> parse_with_statement();
+    NonnullNodePtr<DebuggerStatement> parse_debugger_statement();
+    NonnullNodePtr<ConditionalExpression> parse_conditional_expression(NonnullNodePtr<Expression> test);
+    NonnullNodePtr<OptionalChain> parse_optional_chain(NonnullNodePtr<Expression> base);
+    NonnullNodePtr<Expression> parse_expression(int min_precedence, Associativity associate = Associativity::Right, const Vector<TokenType>& forbidden = {});
     PrimaryExpressionParseResult parse_primary_expression();
-    NonnullRefPtr<Expression> parse_unary_prefixed_expression();
-    NonnullRefPtr<RegExpLiteral> parse_regexp_literal();
-    NonnullRefPtr<ObjectExpression> parse_object_expression();
-    NonnullRefPtr<ArrayExpression> parse_array_expression();
-    NonnullRefPtr<StringLiteral> parse_string_literal(const Token& token, bool in_template_literal = false);
-    NonnullRefPtr<TemplateLiteral> parse_template_literal(bool is_tagged);
-    NonnullRefPtr<Expression> parse_secondary_expression(NonnullRefPtr<Expression>, int min_precedence, Associativity associate = Associativity::Right);
-    NonnullRefPtr<Expression> parse_call_expression(NonnullRefPtr<Expression>);
-    NonnullRefPtr<NewExpression> parse_new_expression();
-    NonnullRefPtr<ClassDeclaration> parse_class_declaration();
-    NonnullRefPtr<ClassExpression> parse_class_expression(bool expect_class_name);
-    NonnullRefPtr<YieldExpression> parse_yield_expression();
-    NonnullRefPtr<AwaitExpression> parse_await_expression();
-    NonnullRefPtr<Expression> parse_property_key();
-    NonnullRefPtr<AssignmentExpression> parse_assignment_expression(AssignmentOp, NonnullRefPtr<Expression> lhs, int min_precedence, Associativity);
-    NonnullRefPtr<Identifier> parse_identifier();
-    NonnullRefPtr<ImportStatement> parse_import_statement(Program& program);
-    NonnullRefPtr<ExportStatement> parse_export_statement(Program& program);
+    NonnullNodePtr<Expression> parse_unary_prefixed_expression();
+    NonnullNodePtr<RegExpLiteral> parse_regexp_literal();
+    NonnullNodePtr<ObjectExpression> parse_object_expression();
+    NonnullNodePtr<ArrayExpression> parse_array_expression();
+    NonnullNodePtr<StringLiteral> parse_string_literal(const Token& token, bool in_template_literal = false);
+    NonnullNodePtr<TemplateLiteral> parse_template_literal(bool is_tagged);
+    NonnullNodePtr<Expression> parse_secondary_expression(NonnullNodePtr<Expression>, int min_precedence, Associativity associate = Associativity::Right);
+    NonnullNodePtr<Expression> parse_call_expression(NonnullNodePtr<Expression>);
+    NonnullNodePtr<NewExpression> parse_new_expression();
+    NonnullNodePtr<ClassDeclaration> parse_class_declaration();
+    NonnullNodePtr<ClassExpression> parse_class_expression(bool expect_class_name);
+    NonnullNodePtr<YieldExpression> parse_yield_expression();
+    NonnullNodePtr<AwaitExpression> parse_await_expression();
+    NonnullNodePtr<Expression> parse_property_key();
+    NonnullNodePtr<AssignmentExpression> parse_assignment_expression(AssignmentOp, NonnullNodePtr<Expression> lhs, int min_precedence, Associativity);
+    NonnullNodePtr<Identifier> parse_identifier();
+    NonnullNodePtr<ImportStatement> parse_import_statement(Program& program);
+    NonnullNodePtr<ExportStatement> parse_export_statement(Program& program);
 
-    RefPtr<FunctionExpression> try_parse_arrow_function_expression(bool expect_parens, bool is_async = false);
-    RefPtr<LabelledStatement> try_parse_labelled_statement(AllowLabelledFunction allow_function);
-    RefPtr<MetaProperty> try_parse_new_target_expression();
-    RefPtr<MetaProperty> try_parse_import_meta_expression();
-    NonnullRefPtr<ImportCall> parse_import_call();
+    NodePtr<FunctionExpression> try_parse_arrow_function_expression(bool expect_parens, bool is_async = false);
+    NodePtr<LabelledStatement> try_parse_labelled_statement(AllowLabelledFunction allow_function);
+    NodePtr<MetaProperty> try_parse_new_target_expression();
+    NodePtr<MetaProperty> try_parse_import_meta_expression();
+    NonnullNodePtr<ImportCall> parse_import_call();
 
     Vector<CallExpression::Argument> parse_arguments();
 
@@ -212,7 +211,7 @@ private:
     void discard_saved_state();
     Position position() const;
 
-    RefPtr<BindingPattern> synthesize_binding_pattern(Expression const& expression);
+    NodePtr<BindingPattern> synthesize_binding_pattern(Expression const& expression);
 
     Token next_token(size_t steps = 1) const;
 

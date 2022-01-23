@@ -27,13 +27,13 @@ public:
     StringView filename() const { return m_filename; }
 
 private:
-    Script(Realm&, StringView filename, NonnullRefPtr<Program>);
+    Script(Realm&, StringView filename, NonnullNodePtr<Program>);
 
     // Handles are not safe unless we keep the VM alive.
     NonnullRefPtr<VM> m_vm;
 
-    Handle<Realm> m_realm;               // [[Realm]]
-    NonnullRefPtr<Program> m_parse_node; // [[ECMAScriptCode]]
+    Handle<Realm> m_realm;                // [[Realm]]
+    NonnullNodePtr<Program> m_parse_node; // [[ECMAScriptCode]]
 
     // Needed for potential lookups of modules.
     String m_filename;

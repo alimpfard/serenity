@@ -165,7 +165,7 @@ ThrowCompletionOr<Value> perform_shadow_realm_eval(GlobalObject& global_object, 
     TRY(vm.push_execution_context(eval_context, eval_realm.global_object()));
 
     // 16. Let result be EvalDeclarationInstantiation(body, varEnv, lexEnv, null, strictEval).
-    auto eval_result = eval_declaration_instantiation(vm, eval_realm.global_object(), program, variable_environment, lexical_environment, nullptr, strict_eval);
+    auto eval_result = eval_declaration_instantiation(vm, eval_realm.global_object(), *program, variable_environment, lexical_environment, nullptr, strict_eval);
 
     Completion result;
 

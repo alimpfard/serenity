@@ -29,7 +29,7 @@
 
 namespace JS {
 
-ECMAScriptFunctionObject* ECMAScriptFunctionObject::create(GlobalObject& global_object, FlyString name, String source_text, Statement const& ecmascript_code, Vector<FunctionNode::Parameter> parameters, i32 m_function_length, Environment* parent_scope, PrivateEnvironment* private_scope, FunctionKind kind, bool is_strict, bool might_need_arguments_object, bool contains_direct_call_to_eval, bool is_arrow_function)
+ECMAScriptFunctionObject* ECMAScriptFunctionObject::create(GlobalObject& global_object, FlyString name, String source_text, NonnullNodePtr<Statement> const& ecmascript_code, Vector<FunctionNode::Parameter> parameters, i32 m_function_length, Environment* parent_scope, PrivateEnvironment* private_scope, FunctionKind kind, bool is_strict, bool might_need_arguments_object, bool contains_direct_call_to_eval, bool is_arrow_function)
 {
     Object* prototype = nullptr;
     switch (kind) {
@@ -49,12 +49,12 @@ ECMAScriptFunctionObject* ECMAScriptFunctionObject::create(GlobalObject& global_
     return global_object.heap().allocate<ECMAScriptFunctionObject>(global_object, move(name), move(source_text), ecmascript_code, move(parameters), m_function_length, parent_scope, private_scope, *prototype, kind, is_strict, might_need_arguments_object, contains_direct_call_to_eval, is_arrow_function);
 }
 
-ECMAScriptFunctionObject* ECMAScriptFunctionObject::create(GlobalObject& global_object, FlyString name, Object& prototype, String source_text, Statement const& ecmascript_code, Vector<FunctionNode::Parameter> parameters, i32 m_function_length, Environment* parent_scope, PrivateEnvironment* private_scope, FunctionKind kind, bool is_strict, bool might_need_arguments_object, bool contains_direct_call_to_eval, bool is_arrow_function)
+ECMAScriptFunctionObject* ECMAScriptFunctionObject::create(GlobalObject& global_object, FlyString name, Object& prototype, String source_text, NonnullNodePtr<Statement> const& ecmascript_code, Vector<FunctionNode::Parameter> parameters, i32 m_function_length, Environment* parent_scope, PrivateEnvironment* private_scope, FunctionKind kind, bool is_strict, bool might_need_arguments_object, bool contains_direct_call_to_eval, bool is_arrow_function)
 {
     return global_object.heap().allocate<ECMAScriptFunctionObject>(global_object, move(name), move(source_text), ecmascript_code, move(parameters), m_function_length, parent_scope, private_scope, prototype, kind, is_strict, might_need_arguments_object, contains_direct_call_to_eval, is_arrow_function);
 }
 
-ECMAScriptFunctionObject::ECMAScriptFunctionObject(FlyString name, String source_text, Statement const& ecmascript_code, Vector<FunctionNode::Parameter> formal_parameters, i32 function_length, Environment* parent_scope, PrivateEnvironment* private_scope, Object& prototype, FunctionKind kind, bool strict, bool might_need_arguments_object, bool contains_direct_call_to_eval, bool is_arrow_function)
+ECMAScriptFunctionObject::ECMAScriptFunctionObject(FlyString name, String source_text, NonnullNodePtr<Statement> const& ecmascript_code, Vector<FunctionNode::Parameter> formal_parameters, i32 function_length, Environment* parent_scope, PrivateEnvironment* private_scope, Object& prototype, FunctionKind kind, bool strict, bool might_need_arguments_object, bool contains_direct_call_to_eval, bool is_arrow_function)
     : FunctionObject(prototype)
     , m_environment(parent_scope)
     , m_private_environment(private_scope)
@@ -340,7 +340,7 @@ ThrowCompletionOr<void> ECMAScriptFunctionObject::function_declaration_instantia
                 if (parameter_names.set(name) != AK::HashSetResult::InsertedNewEntry)
                     has_duplicates = true;
             },
-            [&](NonnullRefPtr<BindingPattern> const& pattern) {
+            [&](NonnullNodePtr<BindingPattern> const& pattern) {
                 if (pattern->contains_expression())
                     has_parameter_expressions = true;
 
@@ -455,7 +455,7 @@ ThrowCompletionOr<void> ECMAScriptFunctionObject::function_declaration_instantia
                         return reference.put_value(global_object(), argument_value);
                     else
                         return reference.initialize_referenced_binding(global_object(), argument_value);
-                } else if (IsSame<NonnullRefPtr<BindingPattern> const&, decltype(param)>) {
+                } else if (IsSame<NonnullNodePtr<BindingPattern> const&, decltype(param)>) {
                     // Here the difference from hasDuplicates is important
                     return vm.binding_initialization(param, argument_value, used_environment, global_object());
                 }
@@ -561,7 +561,7 @@ ThrowCompletionOr<void> ECMAScriptFunctionObject::function_declaration_instantia
     VERIFY(!vm.exception());
     auto* private_environment = callee_context.private_environment;
     for (auto& declaration : functions_to_initialize) {
-        auto* function = ECMAScriptFunctionObject::create(global_object(), declaration.name(), declaration.source_text(), declaration.body(), declaration.parameters(), declaration.function_length(), lex_environment, private_environment, declaration.kind(), declaration.is_strict_mode(), declaration.might_need_arguments_object(), declaration.contains_direct_call_to_eval());
+        auto* function = ECMAScriptFunctionObject::create(global_object(), declaration.name(), declaration.source_text(), declaration.body_ptr(), declaration.parameters(), declaration.function_length(), lex_environment, private_environment, declaration.kind(), declaration.is_strict_mode(), declaration.might_need_arguments_object(), declaration.contains_direct_call_to_eval());
         MUST(var_environment->set_mutable_binding(global_object(), declaration.name(), function, false));
     }
 
@@ -704,7 +704,7 @@ void ECMAScriptFunctionObject::async_function_start(PromiseCapability const& pro
 }
 
 // 27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext ), https://tc39.es/ecma262/#sec-asyncblockstart
-void async_block_start(VM& vm, NonnullRefPtr<Statement> const& async_body, PromiseCapability const& promise_capability, ExecutionContext& async_context)
+void async_block_start(VM& vm, NonnullNodePtr<Statement> const& async_body, PromiseCapability const& promise_capability, ExecutionContext& async_context)
 {
     auto& global_object = vm.current_realm()->global_object();
     // 1. Assert: promiseCapability is a PromiseCapability Record.
@@ -776,7 +776,7 @@ Completion ECMAScriptFunctionObject::ordinary_call_evaluate_body()
         // FIXME: pass something to evaluate default arguments with
         TRY(function_declaration_instantiation(nullptr));
         if (!m_bytecode_executable.has_value()) {
-            m_bytecode_executable = Bytecode::Generator::generate(m_ecmascript_code, m_kind);
+            m_bytecode_executable = Bytecode::Generator::generate(*m_ecmascript_code, m_kind);
             m_bytecode_executable->name = m_name;
             auto& passes = JS::Bytecode::Interpreter::optimization_pipeline();
             passes.perform(*m_bytecode_executable);

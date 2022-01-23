@@ -213,7 +213,7 @@ ThrowCompletionOr<Value> VM::named_evaluation_if_anonymous_function(GlobalObject
 }
 
 // 13.15.5.2 Runtime Semantics: DestructuringAssignmentEvaluation, https://tc39.es/ecma262/#sec-runtime-semantics-destructuringassignmentevaluation
-ThrowCompletionOr<void> VM::destructuring_assignment_evaluation(NonnullRefPtr<BindingPattern> const& target, Value value, GlobalObject& global_object)
+ThrowCompletionOr<void> VM::destructuring_assignment_evaluation(NonnullNodePtr<BindingPattern> const& target, Value value, GlobalObject& global_object)
 {
     // Note: DestructuringAssignmentEvaluation is just like BindingInitialization without an environment
     //       And it allows member expressions. We thus trust the parser to disallow member expressions
@@ -230,7 +230,7 @@ ThrowCompletionOr<void> VM::binding_initialization(FlyString const& target, Valu
 }
 
 // 8.5.2 Runtime Semantics: BindingInitialization, https://tc39.es/ecma262/#sec-runtime-semantics-bindinginitialization
-ThrowCompletionOr<void> VM::binding_initialization(NonnullRefPtr<BindingPattern> const& target, Value value, Environment* environment, GlobalObject& global_object)
+ThrowCompletionOr<void> VM::binding_initialization(NonnullNodePtr<BindingPattern> const& target, Value value, Environment* environment, GlobalObject& global_object)
 {
     // BindingPattern : ObjectBindingPattern
     if (target->kind == BindingPattern::Kind::Object) {
@@ -281,9 +281,9 @@ ThrowCompletionOr<void> VM::property_binding_initialization(BindingPattern const
 
         if (property.is_rest) {
             Reference assignment_target;
-            if (auto identifier_ptr = property.name.get_pointer<NonnullRefPtr<Identifier>>()) {
+            if (auto identifier_ptr = property.name.get_pointer<NonnullNodePtr<Identifier>>()) {
                 assignment_target = TRY(resolve_binding((*identifier_ptr)->string(), environment));
-            } else if (auto member_ptr = property.alias.get_pointer<NonnullRefPtr<MemberExpression>>()) {
+            } else if (auto member_ptr = property.alias.get_pointer<NonnullNodePtr<MemberExpression>>()) {
                 assignment_target = TRY((*member_ptr)->to_reference(interpreter(), global_object));
             } else {
                 VERIFY_NOT_REACHED();
@@ -301,19 +301,19 @@ ThrowCompletionOr<void> VM::property_binding_initialization(BindingPattern const
 
         auto name = TRY(property.name.visit(
             [&](Empty) -> ThrowCompletionOr<PropertyKey> { VERIFY_NOT_REACHED(); },
-            [&](NonnullRefPtr<Identifier> const& identifier) -> ThrowCompletionOr<PropertyKey> {
+            [&](NonnullNodePtr<Identifier> const& identifier) -> ThrowCompletionOr<PropertyKey> {
                 return identifier->string();
             },
-            [&](NonnullRefPtr<Expression> const& expression) -> ThrowCompletionOr<PropertyKey> {
+            [&](NonnullNodePtr<Expression> const& expression) -> ThrowCompletionOr<PropertyKey> {
                 auto result = TRY(expression->execute(interpreter(), global_object)).release_value();
                 return result.to_property_key(global_object);
             }));
 
         seen_names.set(name);
 
-        if (property.name.has<NonnullRefPtr<Identifier>>() && property.alias.has<Empty>()) {
+        if (property.name.has<NonnullNodePtr<Identifier>>() && property.alias.has<Empty>()) {
             // FIXME: this branch and not taking this have a lot in common we might want to unify it more (like it was before).
-            auto& identifier = *property.name.get<NonnullRefPtr<Identifier>>();
+            auto& identifier = *property.name.get<NonnullNodePtr<Identifier>>();
             auto reference = TRY(resolve_binding(identifier.string(), environment));
 
             auto value_to_assign = TRY(object->get(name));
@@ -330,23 +330,23 @@ ThrowCompletionOr<void> VM::property_binding_initialization(BindingPattern const
 
         auto reference_to_assign_to = TRY(property.alias.visit(
             [&](Empty) -> ThrowCompletionOr<Optional<Reference>> { return Optional<Reference> {}; },
-            [&](NonnullRefPtr<Identifier> const& identifier) -> ThrowCompletionOr<Optional<Reference>> {
+            [&](NonnullNodePtr<Identifier> const& identifier) -> ThrowCompletionOr<Optional<Reference>> {
                 return TRY(resolve_binding(identifier->string(), environment));
             },
-            [&](NonnullRefPtr<BindingPattern> const&) -> ThrowCompletionOr<Optional<Reference>> { return Optional<Reference> {}; },
-            [&](NonnullRefPtr<MemberExpression> const& member_expression) -> ThrowCompletionOr<Optional<Reference>> {
+            [&](NonnullNodePtr<BindingPattern> const&) -> ThrowCompletionOr<Optional<Reference>> { return Optional<Reference> {}; },
+            [&](NonnullNodePtr<MemberExpression> const& member_expression) -> ThrowCompletionOr<Optional<Reference>> {
                 return TRY(member_expression->to_reference(interpreter(), global_object));
             }));
 
         auto value_to_assign = TRY(object->get(name));
         if (property.initializer && value_to_assign.is_undefined()) {
-            if (auto* identifier_ptr = property.alias.get_pointer<NonnullRefPtr<Identifier>>())
+            if (auto* identifier_ptr = property.alias.get_pointer<NonnullNodePtr<Identifier>>())
                 value_to_assign = TRY(named_evaluation_if_anonymous_function(global_object, *property.initializer, (*identifier_ptr)->string()));
             else
                 value_to_assign = TRY(property.initializer->execute(interpreter(), global_object)).release_value();
         }
 
-        if (auto* binding_ptr = property.alias.get_pointer<NonnullRefPtr<BindingPattern>>()) {
+        if (auto* binding_ptr = property.alias.get_pointer<NonnullNodePtr<BindingPattern>>()) {
             TRY(binding_initialization(*binding_ptr, value_to_assign, environment, global_object));
         } else {
             VERIFY(reference_to_assign_to.has_value());
@@ -371,11 +371,11 @@ ThrowCompletionOr<void> VM::iterator_binding_initialization(BindingPattern const
 
         auto assignment_target = TRY(entry.alias.visit(
             [&](Empty) -> ThrowCompletionOr<Optional<Reference>> { return Optional<Reference> {}; },
-            [&](NonnullRefPtr<Identifier> const& identifier) -> ThrowCompletionOr<Optional<Reference>> {
+            [&](NonnullNodePtr<Identifier> const& identifier) -> ThrowCompletionOr<Optional<Reference>> {
                 return TRY(resolve_binding(identifier->string(), environment));
             },
-            [&](NonnullRefPtr<BindingPattern> const&) -> ThrowCompletionOr<Optional<Reference>> { return Optional<Reference> {}; },
-            [&](NonnullRefPtr<MemberExpression> const& member_expression) -> ThrowCompletionOr<Optional<Reference>> {
+            [&](NonnullNodePtr<BindingPattern> const&) -> ThrowCompletionOr<Optional<Reference>> { return Optional<Reference> {}; },
+            [&](NonnullNodePtr<MemberExpression> const& member_expression) -> ThrowCompletionOr<Optional<Reference>> {
                 return TRY(member_expression->to_reference(interpreter(), global_object));
             }));
 
@@ -474,13 +474,13 @@ ThrowCompletionOr<void> VM::iterator_binding_initialization(BindingPattern const
 
         if (value.is_undefined() && entry.initializer) {
             VERIFY(!entry.is_rest);
-            if (auto* identifier_ptr = entry.alias.get_pointer<NonnullRefPtr<Identifier>>())
+            if (auto* identifier_ptr = entry.alias.get_pointer<NonnullNodePtr<Identifier>>())
                 value = TRY(named_evaluation_if_anonymous_function(global_object, *entry.initializer, (*identifier_ptr)->string()));
             else
                 value = TRY(entry.initializer->execute(interpreter(), global_object)).release_value();
         }
 
-        if (auto* binding_ptr = entry.alias.get_pointer<NonnullRefPtr<BindingPattern>>()) {
+        if (auto* binding_ptr = entry.alias.get_pointer<NonnullNodePtr<BindingPattern>>()) {
             TRY(binding_initialization(*binding_ptr, value, environment, global_object));
         } else if (!entry.alias.has<Empty>()) {
             VERIFY(assignment_target.has_value());

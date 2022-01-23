@@ -942,16 +942,16 @@ static bool parse_and_run(JS::Interpreter& interpreter, StringView source, Strin
     JS::ThrowCompletionOr<JS::Value> result { JS::js_undefined() };
 
     auto run_script_or_module = [&](Variant<NonnullRefPtr<JS::Script>, NonnullRefPtr<JS::SourceTextModule>> script_or_module) {
-        auto program = script_or_module.visit(
-            [](auto& visitor) -> NonnullRefPtr<JS::Program> {
+        auto& program = script_or_module.visit(
+            [](auto& visitor) -> JS::Program const& {
                 return visitor->parse_node();
             });
 
         if (s_dump_ast)
-            program->dump(0);
+            program.dump(0);
 
         if (JS::Bytecode::g_dump_bytecode || s_run_bytecode) {
-            auto executable = JS::Bytecode::Generator::generate(*program);
+            auto executable = JS::Bytecode::Generator::generate(program);
             executable.name = source_name;
             if (s_opt_bytecode) {
                 auto& passes = JS::Bytecode::Interpreter::optimization_pipeline();

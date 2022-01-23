@@ -44,12 +44,12 @@ protected:
     virtual Completion execute_module(VM& vm, Optional<PromiseCapability> capability) override;
 
 private:
-    SourceTextModule(Realm&, StringView filename, bool has_top_level_await, NonnullRefPtr<Program> body, Vector<FlyString> requested_modules,
+    SourceTextModule(Realm&, StringView filename, bool has_top_level_await, NonnullNodePtr<Program> body, Vector<FlyString> requested_modules,
         Vector<ImportEntry> import_entries, Vector<ExportEntry> local_export_entries,
         Vector<ExportEntry> indirect_export_entries, Vector<ExportEntry> star_export_entries,
-        RefPtr<ExportStatement> default_export);
+        NodePtr<ExportStatement> default_export);
 
-    NonnullRefPtr<Program> m_ecmascript_code;      // [[ECMAScriptCode]]
+    NonnullNodePtr<Program> m_ecmascript_code;     // [[ECMAScriptCode]]
     ExecutionContext m_execution_context;          // [[Context]]
     Handle<Object> m_import_meta;                  // [[ImportMeta]]
     Vector<ImportEntry> m_import_entries;          // [[ImportEntries]]
@@ -57,7 +57,7 @@ private:
     Vector<ExportEntry> m_indirect_export_entries; // [[IndirectExportEntries]]
     Vector<ExportEntry> m_star_export_entries;     // [[StarExportEntries]]
 
-    RefPtr<ExportStatement> m_default_export; // Note: Not from the spec
+    NodePtr<ExportStatement> m_default_export; // Note: Not from the spec
 };
 
 }

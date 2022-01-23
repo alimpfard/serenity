@@ -13,7 +13,7 @@
 
 namespace JS {
 
-void async_block_start(VM&, NonnullRefPtr<Statement> const& parse_node, PromiseCapability const&, ExecutionContext&);
+void async_block_start(VM&, NonnullNodePtr<Statement> const& parse_node, PromiseCapability const&, ExecutionContext&);
 
 // 10.2 ECMAScript Function Objects, https://tc39.es/ecma262/#sec-ecmascript-function-objects
 class ECMAScriptFunctionObject final : public FunctionObject {
@@ -31,10 +31,10 @@ public:
         Global,
     };
 
-    static ECMAScriptFunctionObject* create(GlobalObject&, FlyString name, String source_text, Statement const& ecmascript_code, Vector<FunctionNode::Parameter> parameters, i32 m_function_length, Environment* parent_scope, PrivateEnvironment* private_scope, FunctionKind, bool is_strict, bool might_need_arguments_object = true, bool contains_direct_call_to_eval = true, bool is_arrow_function = false);
-    static ECMAScriptFunctionObject* create(GlobalObject&, FlyString name, Object& prototype, String source_text, Statement const& ecmascript_code, Vector<FunctionNode::Parameter> parameters, i32 m_function_length, Environment* parent_scope, PrivateEnvironment* private_scope, FunctionKind, bool is_strict, bool might_need_arguments_object = true, bool contains_direct_call_to_eval = true, bool is_arrow_function = false);
+    static ECMAScriptFunctionObject* create(GlobalObject&, FlyString name, String source_text, NonnullNodePtr<Statement> const& ecmascript_code, Vector<FunctionNode::Parameter> parameters, i32 m_function_length, Environment* parent_scope, PrivateEnvironment* private_scope, FunctionKind, bool is_strict, bool might_need_arguments_object = true, bool contains_direct_call_to_eval = true, bool is_arrow_function = false);
+    static ECMAScriptFunctionObject* create(GlobalObject&, FlyString name, Object& prototype, String source_text, NonnullNodePtr<Statement> const& ecmascript_code, Vector<FunctionNode::Parameter> parameters, i32 m_function_length, Environment* parent_scope, PrivateEnvironment* private_scope, FunctionKind, bool is_strict, bool might_need_arguments_object = true, bool contains_direct_call_to_eval = true, bool is_arrow_function = false);
 
-    ECMAScriptFunctionObject(FlyString name, String source_text, Statement const& ecmascript_code, Vector<FunctionNode::Parameter> parameters, i32 m_function_length, Environment* parent_scope, PrivateEnvironment* private_scope, Object& prototype, FunctionKind, bool is_strict, bool might_need_arguments_object, bool contains_direct_call_to_eval, bool is_arrow_function);
+    ECMAScriptFunctionObject(FlyString name, String source_text, NonnullNodePtr<Statement> const& ecmascript_code, Vector<FunctionNode::Parameter> parameters, i32 m_function_length, Environment* parent_scope, PrivateEnvironment* private_scope, Object& prototype, FunctionKind, bool is_strict, bool might_need_arguments_object, bool contains_direct_call_to_eval, bool is_arrow_function);
     virtual void initialize(GlobalObject&) override;
     virtual ~ECMAScriptFunctionObject();
 
@@ -43,7 +43,7 @@ public:
 
     void make_method(Object& home_object);
 
-    Statement const& ecmascript_code() const { return m_ecmascript_code; }
+    Statement const& ecmascript_code() const { return *m_ecmascript_code; }
     Vector<FunctionNode::Parameter> const& formal_parameters() const { return m_formal_parameters; };
 
     virtual const FlyString& name() const override { return m_name; };
@@ -106,7 +106,7 @@ private:
     Environment* m_environment { nullptr };                       // [[Environment]]
     PrivateEnvironment* m_private_environment { nullptr };        // [[PrivateEnvironment]]
     Vector<FunctionNode::Parameter> const m_formal_parameters;    // [[FormalParameters]]
-    NonnullRefPtr<Statement> m_ecmascript_code;                   // [[ECMAScriptCode]]
+    NonnullNodePtr<Statement> m_ecmascript_code;                  // [[ECMAScriptCode]]
     ConstructorKind m_constructor_kind { ConstructorKind::Base }; // [[ConstructorKind]]
     Realm* m_realm { nullptr };                                   // [[Realm]]
     ScriptOrModule m_script_or_module;                            // [[ScriptOrModule]]
