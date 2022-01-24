@@ -19,7 +19,7 @@ namespace JS {
 class Script : public RefCounted<Script> {
 public:
     ~Script();
-    static Result<NonnullRefPtr<Script>, Vector<Parser::Error>> parse(StringView source_text, Realm&, StringView filename = {});
+    static Result<NonnullRefPtr<Script>, Vector<ParserError>> parse(StringView source_text, Realm&, StringView filename = {});
 
     Realm& realm() { return *m_realm.cell(); }
     Program const& parse_node() const { return *m_parse_node; }

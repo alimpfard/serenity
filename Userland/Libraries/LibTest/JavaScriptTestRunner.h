@@ -134,7 +134,7 @@ extern Function<void()> g_main_hook;
 extern HashMap<bool*, Tuple<String, String, char>> g_extra_args;
 
 struct ParserError {
-    JS::Parser::Error error;
+    JS::ParserError error;
     String hint;
 };
 

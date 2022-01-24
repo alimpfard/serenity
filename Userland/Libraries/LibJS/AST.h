@@ -18,6 +18,7 @@
 #include <AK/Vector.h>
 #include <LibJS/Forward.h>
 #include <LibJS/NodePool.h>
+#include <LibJS/ParserState.h>
 #include <LibJS/Runtime/Completion.h>
 #include <LibJS/Runtime/EnvironmentCoordinate.h>
 #include <LibJS/Runtime/FunctionKind.h>
@@ -35,6 +36,7 @@ class FunctionDeclaration;
 class Identifier;
 class MemberExpression;
 class VariableDeclaration;
+class ParseThunk;
 
 class ASTNode : public NodePool::Node {
 public:
@@ -469,6 +471,32 @@ public:
     {
     }
     virtual ThrowCompletionOr<Reference> to_reference(Interpreter&, GlobalObject&) const;
+};
+
+struct ExpressionParseData;
+class Parser;
+class ParseThunk : public Expression {
+public:
+    explicit ParseThunk(SourceRange range, ParserState const& state, ExpressionParseData data)
+        : Expression(range)
+        , m_saved_parser_state(state)
+        , m_data(move(data))
+    {
+        m_saved_parser_state.errors = {};
+        m_saved_parser_state.current_scope_pusher = nullptr;
+        m_saved_parser_state.labels_in_scope = {};
+        m_saved_parser_state.referenced_private_names = nullptr;
+    }
+
+    virtual Completion execute(Interpreter&, GlobalObject&) const override { VERIFY_NOT_REACHED(); }
+    virtual ThrowCompletionOr<Reference> to_reference(Interpreter&, GlobalObject&) const override { VERIFY_NOT_REACHED(); };
+    virtual void dump(int indent) const override;
+
+    void reparse_and_reseat_all_users(Parser&);
+
+private:
+    ParserState m_saved_parser_state;
+    ExpressionParseData m_data;
 };
 
 class Declaration : public Statement {

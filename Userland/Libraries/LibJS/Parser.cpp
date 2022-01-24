@@ -390,16 +390,16 @@ private:
 
 constexpr OperatorPrecedenceTable g_operator_precedence;
 
-Parser::ParserState::ParserState(Lexer l, Program::Type program_type)
+ParserState::ParserState(Lexer l, bool should_allow_html_comments)
     : lexer(move(l))
 {
-    if (program_type == Program::Type::Module)
+    if (!should_allow_html_comments)
         lexer.disallow_html_comments();
     current_token = lexer.next();
 }
 
 Parser::Parser(Lexer lexer, Program::Type program_type)
-    : m_state(move(lexer), program_type)
+    : m_state(move(lexer), program_type != Program::Type::Module)
     , m_program_type(program_type)
 {
 }
@@ -474,6 +474,19 @@ bool Parser::parse_directive(ScopeNode& body)
     return found_use_strict;
 }
 
+void ParseThunk::reparse_and_reseat_all_users(Parser& parser)
+{
+    parser.switch_to_state(m_saved_parser_state, {});
+
+    auto expression = parser.parse_expression(m_data.min_precedence, m_data.associate, m_data.forbidden);
+    expression.node().reseat_node(*this);
+
+    auto new_errors = parser.errors();
+
+    parser.leave_state({});
+    parser.append_errors(move(new_errors));
+}
+
 NonnullNodePtr<Program> Parser::parse_program(bool starts_in_strict_mode)
 {
     auto rule_start = push_start();
@@ -484,6 +497,12 @@ NonnullNodePtr<Program> Parser::parse_program(bool starts_in_strict_mode)
         parse_script(*program, starts_in_strict_mode);
     else
         parse_module(*program);
+
+    while (!m_all_thunks.is_empty()) {
+        auto thunks = move(m_all_thunks);
+        for (auto& thunk : thunks)
+            thunk->reparse_and_reseat_all_users(*this);
+    }
 
     program->source_range().end = position();
     return program;
@@ -1924,6 +1943,87 @@ NonnullNodePtr<TemplateLiteral> Parser::parse_template_literal(bool is_tagged)
 NonnullNodePtr<Expression> Parser::parse_expression(int min_precedence, Associativity associativity, const Vector<TokenType>& forbidden)
 {
     auto rule_start = push_start();
+
+    TemporaryChange nesting_level_update { m_expression_nesting_level, m_expression_nesting_level + 1 };
+    auto try_continue_parsing_with_comma_operator = [&](auto const& expression) -> NonnullNodePtr<Expression> {
+        if (match(TokenType::Comma) && min_precedence <= 1) {
+            NonnullNodePtrVector<Expression> expressions;
+            expressions.append(expression);
+            while (match(TokenType::Comma)) {
+                consume();
+                expressions.append(parse_expression(2));
+            }
+            return NodePool::the().create_ast_node<SequenceExpression>({ m_state.current_token.filename(), rule_start.position(), position() }, move(expressions));
+        }
+        return expression;
+    };
+    // We have to parse _at least_ one, otherwise no thunks can be reparsed!
+    // Note: Stack info with ASAN is dodgy, so add a manual, arbitrary "> 32" limit here as well.
+    if (m_expression_nesting_level > 32 || (m_stack_info.size_free() < 16 * KiB && m_expression_nesting_level > 1)) {
+        auto start_position = position();
+        auto state_copy = m_state;
+        struct {
+            size_t parens { 0 };
+            size_t brackets { 0 };
+            size_t braces { 0 };
+            size_t conditionals { 0 };
+            auto any() const { return parens > 0 || brackets > 0 || braces > 0 || conditionals > 0; }
+        } open_enclosures;
+        auto did_match_expression = true;
+        while (!match(TokenType::Eof)) {
+            if (!match_expression()) {
+                if (!did_match_expression || (did_match_expression && !match_secondary_expression(forbidden))) {
+                    if (!open_enclosures.any())
+                        break;
+                }
+                did_match_expression = false;
+            } else {
+                did_match_expression = true;
+            }
+
+            auto token = consume();
+            switch (token.type()) {
+            case TokenType::QuestionMark:
+                open_enclosures.conditionals++;
+                break;
+            case TokenType::Colon:
+                if (open_enclosures.conditionals)
+                    open_enclosures.conditionals--;
+                break;
+            case TokenType::BracketOpen:
+                open_enclosures.brackets++;
+                break;
+            case TokenType::BracketClose:
+                open_enclosures.brackets--;
+                did_match_expression = true;
+                break;
+            case TokenType::CurlyOpen:
+                open_enclosures.braces++;
+                break;
+            case TokenType::CurlyClose:
+                open_enclosures.braces--;
+                break;
+            case TokenType::ParenOpen:
+                open_enclosures.parens++;
+                break;
+            case TokenType::ParenClose:
+                open_enclosures.parens--;
+                did_match_expression = true;
+                break;
+            default:
+                break;
+            }
+        }
+
+        auto ptr = NodePool::the().create_ast_node<ParseThunk>(
+            { m_filename, start_position, position() },
+            move(state_copy),
+            ExpressionParseData { min_precedence, associativity, forbidden });
+
+        m_all_thunks.append(ptr);
+        return try_continue_parsing_with_comma_operator(ptr);
+    }
+
     auto [expression, should_continue_parsing] = parse_primary_expression();
     auto check_for_invalid_object_property = [&](auto& expression) {
         if (is<ObjectExpression>(*expression)) {
@@ -1994,16 +2094,7 @@ NonnullNodePtr<Expression> Parser::parse_expression(int min_precedence, Associat
         }
     }
 
-    if (match(TokenType::Comma) && min_precedence <= 1) {
-        NonnullNodePtrVector<Expression> expressions;
-        expressions.append(expression);
-        while (match(TokenType::Comma)) {
-            consume();
-            expressions.append(parse_expression(2));
-        }
-        expression = NodePool::the().create_ast_node<SequenceExpression>({ m_state.current_token.filename(), rule_start.position(), position() }, move(expressions));
-    }
-    return expression;
+    return try_continue_parsing_with_comma_operator(expression);
 }
 
 NonnullNodePtr<Expression> Parser::parse_secondary_expression(NonnullNodePtr<Expression> lhs, int min_precedence, Associativity associativity)

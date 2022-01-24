@@ -60,7 +60,14 @@ public:
             return;
 
         m_free_ids.append(id);
-        m_pool[id] = nullptr;
+        // Defer the deletion unless we have too many deferred deletes
+        // then drop it down to some arbitrary number.
+        size_t node_id_index = 0;
+        while (m_deferred_deletions > maximum_deferred_deletions_allowed) {
+            --m_deferred_deletions;
+            m_pool[m_free_ids[node_id_index]] = nullptr;
+            ++node_id_index;
+        }
     }
 
     template<typename T>
@@ -75,8 +82,11 @@ public:
     }
 
 private:
+    constexpr static size_t maximum_deferred_deletions_allowed = 128;
+
     Vector<OwnPtr<Node>> m_pool;
     Vector<size_t> m_free_ids;
+    size_t m_deferred_deletions { 0 };
     bool m_deleting { false };
 };
 

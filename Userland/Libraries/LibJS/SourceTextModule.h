@@ -20,7 +20,7 @@ public:
     using ImportEntry = ImportStatement::ImportEntry;
     using ExportEntry = ExportStatement::ExportEntry;
 
-    static Result<NonnullRefPtr<SourceTextModule>, Vector<Parser::Error>> parse(StringView source_text, Realm&, StringView filename = {});
+    static Result<NonnullRefPtr<SourceTextModule>, Vector<ParserError>> parse(StringView source_text, Realm&, StringView filename = {});
 
     Program const& parse_node() const { return *m_ecmascript_code; }
 

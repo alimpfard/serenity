@@ -71,7 +71,7 @@ SourceTextModule::SourceTextModule(Realm& realm, StringView filename, bool has_t
 }
 
 // 16.2.1.6.1 ParseModule ( sourceText, realm, hostDefined ), https://tc39.es/ecma262/#sec-parsemodule
-Result<NonnullRefPtr<SourceTextModule>, Vector<Parser::Error>> SourceTextModule::parse(StringView source_text, Realm& realm, StringView filename)
+Result<NonnullRefPtr<SourceTextModule>, Vector<ParserError>> SourceTextModule::parse(StringView source_text, Realm& realm, StringView filename)
 {
     // 1. Let body be ParseText(sourceText, Module).
     auto parser = Parser(Lexer(source_text, filename), Program::Type::Module);

@@ -8,19 +8,16 @@
 #pragma once
 
 #include <AK/HashTable.h>
+#include <AK/StackInfo.h>
 #include <AK/StringBuilder.h>
 #include <LibJS/AST.h>
 #include <LibJS/Lexer.h>
+#include <LibJS/ParserState.h>
 #include <LibJS/Runtime/FunctionConstructor.h>
 #include <LibJS/SourceRange.h>
 #include <stdio.h>
 
 namespace JS {
-
-enum class Associativity {
-    Left,
-    Right
-};
 
 struct FunctionNodeParseOptions {
     enum {
@@ -127,36 +124,8 @@ public:
 
     Vector<CallExpression::Argument> parse_arguments();
 
-    struct Error {
-        String message;
-        Optional<Position> position;
-
-        String to_string() const
-        {
-            if (!position.has_value())
-                return message;
-            return String::formatted("{} (line: {}, column: {})", message, position.value().line, position.value().column);
-        }
-
-        String source_location_hint(StringView source, const char spacer = ' ', const char indicator = '^') const
-        {
-            if (!position.has_value())
-                return {};
-            // We need to modify the source to match what the lexer considers one line - normalizing
-            // line terminators to \n is easier than splitting using all different LT characters.
-            String source_string = source.replace("\r\n", "\n").replace("\r", "\n").replace(LINE_SEPARATOR_STRING, "\n").replace(PARAGRAPH_SEPARATOR_STRING, "\n");
-            StringBuilder builder;
-            builder.append(source_string.split_view('\n', true)[position.value().line - 1]);
-            builder.append('\n');
-            for (size_t i = 0; i < position.value().column - 1; ++i)
-                builder.append(spacer);
-            builder.append(indicator);
-            return builder.build();
-        }
-    };
-
     bool has_errors() const { return m_state.errors.size(); }
-    const Vector<Error>& errors() const { return m_state.errors; }
+    const Vector<ParserError>& errors() const { return m_state.errors; }
     void print_errors(bool print_hint = true) const
     {
         for (auto& error : m_state.errors) {
@@ -175,6 +144,20 @@ public:
 
     // Needs to mess with m_state, and we're not going to expose a non-const getter for that :^)
     friend ThrowCompletionOr<ECMAScriptFunctionObject*> FunctionConstructor::create_dynamic_function(GlobalObject&, FunctionObject&, FunctionObject*, FunctionKind, MarkedValueList const&);
+
+    void switch_to_state(ParserState state, Badge<ParseThunk>)
+    {
+        save_state();
+        m_state = move(state);
+    }
+    void leave_state(Badge<ParseThunk>)
+    {
+        load_state();
+    }
+    void append_errors(Vector<ParserError> new_errors)
+    {
+        m_state.errors.extend(move(new_errors));
+    }
 
 private:
     friend class ScopePusher;
@@ -256,33 +239,6 @@ private:
 
     [[nodiscard]] RulePosition push_start() { return { *this, position() }; }
 
-    struct ParserState {
-        Lexer lexer;
-        Token current_token;
-        Vector<Error> errors;
-        ScopePusher* current_scope_pusher { nullptr };
-
-        HashMap<StringView, Optional<Position>> labels_in_scope;
-        HashTable<StringView>* referenced_private_names { nullptr };
-
-        bool strict_mode { false };
-        bool allow_super_property_lookup { false };
-        bool allow_super_constructor_call { false };
-        bool in_function_context { false };
-        bool in_formal_parameter_context { false };
-        bool in_generator_function_context { false };
-        bool await_expression_is_valid { false };
-        bool in_arrow_function_context { false };
-        bool in_break_context { false };
-        bool in_continue_context { false };
-        bool string_legacy_octal_escape_sequence_in_scope { false };
-        bool in_class_field_initializer { false };
-        bool in_class_static_init_block { false };
-        bool function_might_need_arguments_object { false };
-
-        ParserState(Lexer, Program::Type);
-    };
-
     class PositionKeyTraits {
     public:
         static int hash(const Position& position)
@@ -302,5 +258,8 @@ private:
     Vector<ParserState> m_saved_state;
     HashMap<Position, TokenMemoization, PositionKeyTraits> m_token_memoizations;
     Program::Type m_program_type;
+    size_t m_expression_nesting_level { 0 };
+    NonnullNodePtrVector<ParseThunk> m_all_thunks;
+    StackInfo m_stack_info;
 };
 }

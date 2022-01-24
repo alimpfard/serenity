@@ -1913,6 +1913,12 @@ void ASTNode::dump(int indent) const
     outln("{}", class_name());
 }
 
+void ParseThunk::dump(int indent) const
+{
+    print_indent(indent);
+    outln("{} ({}-{}: '{}')", class_name(), source_range().start.offset, source_range().end.offset, m_saved_parser_state.lexer.source().substring_view(source_range().start.offset, source_range().end.offset - source_range().start.offset));
+}
+
 void ScopeNode::dump(int indent) const
 {
     ASTNode::dump(indent);
