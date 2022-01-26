@@ -746,6 +746,41 @@ NodePtr<FunctionExpression> Parser::try_parse_arrow_function_expression(bool exp
     Vector<FunctionNode::Parameter> parameters;
     i32 function_length = -1;
     if (expect_parens) {
+        // NOTE: This is a fast path to ensure that this _is_ in fact an arrow function
+        //       by skipping a balanced set of parens and checking if the next token is
+        //       an Arrow as we require parens around the formal parameters, and
+        //       if there is none, then this cannot possibly be an arrow function.
+        {
+            Lexer lexer { m_state.lexer };
+            size_t open_parens = 1;
+            switch (m_state.current_token.type()) {
+            case TokenType::ParenOpen:
+                ++open_parens;
+                break;
+            case TokenType::ParenClose:
+                --open_parens;
+                break;
+            default:
+                break;
+            }
+
+            while (open_parens > 0) {
+                auto token = lexer.next();
+                if (token.type() == TokenType::Eof)
+                    break;
+                if (token.type() == TokenType::ParenOpen)
+                    open_parens++;
+                if (token.type() == TokenType::ParenClose)
+                    open_parens--;
+            }
+
+            if (open_parens != 0)
+                return nullptr;
+
+            if (lexer.next().type() != TokenType::Arrow)
+                return nullptr;
+        }
+
         // We have parens around the function parameters and can re-use the same parsing
         // logic used for regular functions: multiple parameters, default values, rest
         // parameter, maybe a trailing comma. If we have a new syntax error afterwards we
