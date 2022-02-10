@@ -49,7 +49,7 @@ public:
 
         IteratorImpl& operator++()
         {
-            if (auto it = m_map.m_keys.find_smallest_not_below_iterator(ensure_index() + 1); it.is_end())
+            if (auto it = m_map.m_keys.find_smallest_not_below_iterator(ensure_index(false) + 1); it.is_end())
                 m_index = m_map.m_next_insertion_id;
             else
                 m_index = it.key();
@@ -81,11 +81,18 @@ public:
         {
         }
 
-        size_t ensure_index()
+        size_t ensure_index(bool correct_current = true)
         {
             if (!m_index.has_value()) {
                 VERIFY(!m_map.m_keys.is_empty());
                 m_index = m_map.m_keys.begin().key();
+            } else if (correct_current) {
+                // Make sure to validate the previous index as it may have been deleted in
+                // the space between the previous operator++() and wherever we are now.
+                if (auto it = m_map.m_keys.find_smallest_not_below_iterator(*m_index); it.is_end())
+                    m_index = m_map.m_next_insertion_id;
+                else
+                    m_index = it.key();
             }
             return *m_index;
         }
