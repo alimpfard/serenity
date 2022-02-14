@@ -109,19 +109,19 @@ ErrorOr<FlatPtr> Process::sys$unveil(Userspace<const Syscall::SC_unveil_params*>
         if (matching_node.permissions() != new_permissions)
             update_intermediate_node_permissions(matching_node, (UnveilAccess)new_permissions);
 
-        matching_node.set_metadata({ matching_node.path(), (UnveilAccess)new_permissions, true });
+        matching_node.set_metadata(UnveilMetadata(matching_node.path(), (UnveilAccess)new_permissions, true));
         m_veil_state = VeilState::Dropped;
         return 0;
     }
 
-    matching_node.insert(
+    TRY(matching_node.insert(
         it,
         path_parts.end(),
-        { new_unveiled_path->view(), (UnveilAccess)new_permissions, true },
-        [](auto& parent, auto& it) -> Optional<UnveilMetadata> {
-            auto path = String::formatted("{}/{}", parent.path(), *it);
-            return UnveilMetadata { path, parent.permissions(), false };
-        });
+        { move(new_unveiled_path), (UnveilAccess)new_permissions, true },
+        [](auto& parent, auto& it) -> ErrorOr<Optional<UnveilMetadata>> {
+            auto path = TRY(KString::formatted("{}/{}", parent.path(), *it));
+            return UnveilMetadata(static_cast<OwnPtr<KString>&&>(move(path)), parent.permissions(), false);
+        }));
 
     VERIFY(m_veil_state != VeilState::Locked);
     m_veil_state = VeilState::Dropped;

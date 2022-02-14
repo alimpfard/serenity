@@ -800,7 +800,7 @@ private:
     RefPtr<Timer> m_alarm_timer;
 
     VeilState m_veil_state { VeilState::None };
-    UnveilNode m_unveiled_paths { "/", { .full_path = "/" } };
+    UnveilNode m_unveiled_paths { "/", UnveilMetadata("/"sv) };
 
     OwnPtr<PerformanceEventBuffer> m_perf_event_buffer;
 
