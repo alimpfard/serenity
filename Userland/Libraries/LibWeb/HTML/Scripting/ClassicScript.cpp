@@ -6,6 +6,7 @@
 
 #include <AK/Debug.h>
 #include <LibCore/ElapsedTimer.h>
+#include <LibJS/Bytecode/Interpreter.h>
 #include <LibJS/Interpreter.h>
 #include <LibWeb/Bindings/ExceptionOrUtils.h>
 #include <LibWeb/DOM/DOMException.h>
@@ -94,8 +95,16 @@ JS::Completion ClassicScript::run(RethrowErrors rethrow_errors)
 
         // 6. Otherwise, set evaluationStatus to ScriptEvaluation(script's record).
         auto interpreter = JS::Interpreter::create_with_existing_realm(m_script_record->realm());
-
-        evaluation_status = interpreter->run(*m_script_record);
+        if (m_script_record->executable()) {
+            dbgln("\x1b[32;1mrunning in BC mode for\x1b[0m {}", m_settings_object.creation_url);
+            JS::Bytecode::Interpreter bytecode_interpreter(global_object, m_script_record->realm());
+            bytecode_interpreter.enter_script_or_module(m_script_record->make_weak_ptr());
+            evaluation_status = bytecode_interpreter.run(*m_script_record->executable());
+            bytecode_interpreter.leave_script_or_module();
+        } else {
+            dbgln("\x1b[32;1mNot running in BC mode for {}\x1b[0m", m_settings_object.creation_url);
+            evaluation_status = interpreter->run(*m_script_record);
+        }
 
         // FIXME: If ScriptEvaluation does not complete because the user agent has aborted the running script, leave evaluationStatus as null.
 

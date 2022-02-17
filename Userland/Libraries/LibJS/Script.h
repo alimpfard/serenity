@@ -9,6 +9,7 @@
 #include <AK/NonnullRefPtr.h>
 #include <AK/RefCounted.h>
 #include <LibJS/AST.h>
+#include <LibJS/Bytecode/Executable.h>
 #include <LibJS/Heap/Handle.h>
 #include <LibJS/Parser.h>
 #include <LibJS/Runtime/Realm.h>
@@ -29,6 +30,7 @@ public:
 
     Realm& realm() { return *m_realm.cell(); }
     Program const& parse_node() const { return *m_parse_node; }
+    auto* executable() { return m_executable.ptr(); }
 
     HostDefined* host_defined() { return m_host_defined; }
     StringView filename() const { return m_filename; }
@@ -40,6 +42,7 @@ private:
 
     Handle<Realm> m_realm;               // [[Realm]]
     NonnullRefPtr<Program> m_parse_node; // [[ECMAScriptCode]]
+    OwnPtr<Bytecode::Executable> m_executable;
 
     // Needed for potential lookups of modules.
     String m_filename;

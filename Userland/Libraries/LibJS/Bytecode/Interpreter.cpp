@@ -56,6 +56,7 @@ Interpreter::ValueAndFrame Interpreter::run_and_return_frame(Executable const& e
         execution_context.function_name = global_execution_context_name;
         execution_context.lexical_environment = &m_realm.global_environment();
         execution_context.variable_environment = &m_realm.global_environment();
+        execution_context.script_or_module = m_script_or_module;
         execution_context.realm = &m_realm;
         // FIXME: How do we know if we're in strict mode? Maybe the Bytecode::Block should know this?
         // execution_context.is_strict_mode = ???;
