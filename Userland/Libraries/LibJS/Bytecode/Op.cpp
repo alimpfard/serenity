@@ -129,7 +129,7 @@ ThrowCompletionOr<void> NewArray::execute_impl(Bytecode::Interpreter& interprete
     Vector<Value> elements;
     elements.ensure_capacity(m_element_count);
     for (size_t i = 0; i < m_element_count; i++)
-        elements.append(interpreter.reg(m_elements[i]));
+        elements.append(interpreter.reg(Register(m_elements[0].index() + i)));
     interpreter.accumulator() = Array::create_from(interpreter.global_object(), elements);
     return {};
 }
