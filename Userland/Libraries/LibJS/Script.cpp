@@ -5,6 +5,8 @@
  */
 
 #include <LibJS/AST.h>
+#include <LibJS/Bytecode/Generator.h>
+#include <LibJS/Bytecode/Interpreter.h>
 #include <LibJS/Lexer.h>
 #include <LibJS/Parser.h>
 #include <LibJS/Runtime/VM.h>
@@ -34,6 +36,10 @@ Script::Script(Realm& realm, StringView filename, NonnullRefPtr<Program> parse_n
     , m_filename(filename)
     , m_host_defined(host_defined)
 {
+    if (auto result = JS::Bytecode::Generator::generate(m_parse_node); !result.is_error()) {
+        m_executable = result.release_value();
+        Bytecode::Interpreter::optimization_pipeline().perform(*m_executable);
+    }
 }
 
 Script::~Script()
