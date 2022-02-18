@@ -519,7 +519,7 @@ if (BUILD_LAGOM)
 
         add_executable(wasm_lagom ../../Userland/Utilities/wasm.cpp)
         set_target_properties(wasm_lagom PROPERTIES OUTPUT_NAME wasm)
-        target_link_libraries(wasm_lagom LagomCore LagomWasm LagomLine LagomMain)
+        target_link_libraries(wasm_lagom LagomCore LagomWasm LagomLine LagomMain dl)
 
         enable_testing()
         # LibTest

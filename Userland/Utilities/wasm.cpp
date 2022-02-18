@@ -14,6 +14,7 @@
 #include <LibWasm/AbstractMachine/BytecodeInterpreter.h>
 #include <LibWasm/Printer/Printer.h>
 #include <LibWasm/Types.h>
+#include <dlfcn.h>
 #include <signal.h>
 #include <unistd.h>
 
@@ -267,6 +268,16 @@ static void print_link_error(Wasm::LinkError const& error)
         warnln("Missing import '{}'", missing);
 }
 
+struct ExportedMemory {
+    size_t size;
+    String export_name;
+};
+
+struct ImportedNativeObject {
+    String name;
+    Vector<String> import_names;
+};
+
 ErrorOr<int> serenity_main(Main::Arguments arguments)
 {
     char const* filename = nullptr;
@@ -278,6 +289,8 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
     String exported_function_to_execute;
     Vector<u64> values_to_push;
     Vector<String> modules_to_link_in;
+    Vector<ImportedNativeObject> imported_native_objects;
+    Optional<ExportedMemory> exported_memory;
 
     Core::ArgsParser parser;
     parser.add_positional_argument(filename, "File name to parse", "file");
@@ -313,6 +326,52 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
                 return true;
             }
             return false;
+        },
+    });
+    parser.add_option(Core::ArgsParser::Option {
+        .requires_argument = true,
+        .help_string = "Import functions from a native shared object (path:name,name,...)",
+        .long_name = "import-object",
+        .short_name = 0,
+        .value_name = "import",
+        .accept_value = [&](char const* str) -> bool {
+            StringView s { str };
+            auto path = s.split_view(':', true)[0];
+            if (path.length() == s.length())
+                return false;
+
+            auto imports = s.substring_view(path.length() + 1).split_view(',', true);
+            Vector<String> import_strings;
+            import_strings.ensure_capacity(imports.size());
+            for (auto& import_ : imports)
+                import_strings.append(import_);
+            imported_native_objects.empend(path, move(import_strings));
+            return true;
+        },
+    });
+    parser.add_option(Core::ArgsParser::Option {
+        .requires_argument = true,
+        .help_string = "Export linear memory",
+        .long_name = "memory",
+        .short_name = 'm',
+        .value_name = "name:size",
+        .accept_value = [&](const char* name) {
+            if (exported_memory.has_value())
+                return false;
+
+            auto parts = StringView { name }.split_view(':', true);
+            if (parts.size() != 2)
+                return false;
+
+            auto size = parts[1].to_uint();
+            if (!size.has_value())
+                return false;
+
+            exported_memory = ExportedMemory {
+                size.value(),
+                parts[0],
+            };
+            return true;
         },
     });
     parser.parse(arguments);
@@ -417,6 +476,55 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
 
             linker.link(exports);
         }
+
+        HashMap<Wasm::Linker::Name, Wasm::ExternValue> native_exports;
+        for (auto& native_object : imported_native_objects) {
+            auto handle = dlopen(native_object.name.characters(), RTLD_NOW);
+            if (!handle) {
+                warnln("Error loading {}: {}", native_object.name, dlerror());
+                return Error::from_string_literal(dlerror());
+            }
+
+            HashTable<Wasm::Linker::Name>& unresolved_imports = linker.unresolved_imports();
+            for (auto& entry : unresolved_imports) {
+                if (!entry.type.has<Wasm::TypeIndex>())
+                    continue;
+
+                auto it = native_object.import_names.find(entry.name);
+                if (it.is_end())
+                    continue;
+
+                auto symbol = dlsym(handle, it->characters());
+                if (!symbol) {
+                    warnln("Failed to find the imported symbol '{}' in {}", *it, native_object.name);
+                    return Error::from_string_literal("Failed to find a symbol");
+                }
+
+                auto type = parse_result.value().type(entry.type.get<Wasm::TypeIndex>());
+                auto address = machine.store().allocate(Wasm::HostFunction(
+                    [symbol](auto& configuration, auto& arguments) -> Wasm::Result {
+                        typedef Wasm::Value (*fn)(Wasm::Configuration&, size_t, Wasm::Value*);
+                        return Wasm::Result {
+                            Vector<Wasm::Value> { ((fn)symbol)(configuration, arguments.size(), arguments.data()) }
+                        };
+                    },
+                    type));
+                native_exports.set(entry, *address);
+            }
+        }
+
+        if (exported_memory.has_value()) {
+            auto type = Wasm::MemoryType(Wasm::Limits(exported_memory->size));
+            auto address = machine.store().allocate(type);
+            Wasm::Linker::Name name {
+                "env",
+                exported_memory->export_name,
+                move(type),
+            };
+            native_exports.set(move(name), *address);
+        }
+
+        linker.link(native_exports);
 
         auto link_result = linker.finish();
         if (link_result.is_error()) {
