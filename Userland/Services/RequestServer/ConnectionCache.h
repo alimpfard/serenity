@@ -15,6 +15,7 @@
 #include <LibCore/ElapsedTimer.h>
 #include <LibCore/EventLoop.h>
 #include <LibCore/NetworkJob.h>
+#include <LibCore/SOCKSProxyClient.h>
 #include <LibCore/Timer.h>
 #include <LibTLS/TLSv12.h>
 
@@ -28,6 +29,35 @@ enum class CacheLevel {
 }
 
 namespace RequestServer::ConnectionCache {
+
+struct ProxyData {
+    enum Type {
+        Direct,
+        SOCKS5,
+    } type { Type::Direct };
+
+    u32 host_ipv4 { 0 };
+    int port { 0 };
+    OwnPtr<Core::SocksProxyClient> proxy_client_storage {};
+
+    template<typename SocketType, typename... Args>
+    ErrorOr<NonnullOwnPtr<SocketType>> tunnel(URL const& url, Args&&... args)
+    {
+        if (type == Direct) {
+            return TRY(SocketType::connect(url.host(), url.port_or_default(), forward<Args>(args)...));
+        }
+        if (type == SOCKS5) {
+            if constexpr (requires { SocketType::connect(declval<String>(), *proxy_client_storage, forward<Args>(args)...); }) {
+                auto proxy = TRY(Core::SocksProxyClient::connect(host_ipv4, port, Core::SocksProxyClient::Version::V5, url.host(), url.port_or_default()));
+                proxy_client_storage = move(proxy);
+                return TRY(SocketType::connect(url.host(), *proxy_client_storage, forward<Args>(args)...));
+            } else {
+                return Error::from_string_literal("SOCKS5 not supported for this socket type");
+            }
+        }
+        VERIFY_NOT_REACHED();
+    }
+};
 
 template<typename Socket>
 struct Connection {
@@ -72,6 +102,7 @@ struct Connection {
     URL current_url {};
     Core::ElapsedTimer timer {};
     JobData job_data {};
+    ProxyData proxy_data {};
 };
 
 struct ConnectionKey {
@@ -132,16 +163,16 @@ ErrorOr<void> recreate_socket_if_needed(T& connection, URL const& url)
                     return connection.job_data.provide_client_certificates();
                 return {};
             });
-            TRY(set_socket(TRY(SocketType::connect(url.host(), url.port_or_default(), move(options)))));
+            TRY(set_socket(TRY(connection.proxy_data.template tunnel<SocketType>(url, move(options)))));
         } else {
-            TRY(set_socket(TRY(SocketType::connect(url.host(), url.port_or_default()))));
+            TRY(set_socket(TRY(connection.proxy_data.template tunnel<SocketType>(url))));
         }
         dbgln_if(REQUESTSERVER_DEBUG, "Creating a new socket for {} -> {}", url, connection.socket);
     }
     return {};
 }
 
-decltype(auto) get_or_create_connection(auto& cache, URL const& url, auto& job)
+decltype(auto) get_or_create_connection(auto& cache, URL const& url, auto& job, ProxyData proxy = {})
 {
     using CacheEntryType = RemoveCVReference<decltype(*cache.begin()->value)>;
     auto& sockets_for_url = *cache.ensure({ url.host(), url.port_or_default() }, [] { return make<CacheEntryType>(); });
@@ -152,7 +183,7 @@ decltype(auto) get_or_create_connection(auto& cache, URL const& url, auto& job)
     auto failed_to_find_a_socket = it.is_end();
     if (failed_to_find_a_socket && sockets_for_url.size() < ConnectionCache::MaxConcurrentConnectionsPerURL) {
         using ConnectionType = RemoveCVReference<decltype(cache.begin()->value->at(0))>;
-        auto connection_result = ConnectionType::SocketType::connect(url.host(), url.port_or_default());
+        auto connection_result = proxy.tunnel<typename ConnectionType::SocketType>(url);
         if (connection_result.is_error()) {
             dbgln("ConnectionCache: Connection to {} failed: {}", url, connection_result.error());
             Core::deferred_invoke([&job] {

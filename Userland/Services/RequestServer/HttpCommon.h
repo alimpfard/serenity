@@ -89,7 +89,7 @@ OwnPtr<Request> start_request(TBadgedProtocol&& protocol, ConnectionFromClient& 
     protocol_request->set_request_fd(pipe_result.value().read_fd);
 
     if constexpr (IsSame<typename TBadgedProtocol::Type, HttpsProtocol>)
-        ConnectionCache::get_or_create_connection(ConnectionCache::g_tls_connection_cache, url, *job);
+        ConnectionCache::get_or_create_connection(ConnectionCache::g_tls_connection_cache, url, *job, ConnectionCache::ProxyData { .type = ConnectionCache::ProxyData::SOCKS5, .host_ipv4 = IPv4Address(192, 168, 1, 2).to_u32(), .port = 9050 });
     else
         ConnectionCache::get_or_create_connection(ConnectionCache::g_tcp_connection_cache, url, *job);
 
