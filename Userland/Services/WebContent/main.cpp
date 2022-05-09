@@ -23,7 +23,7 @@
 ErrorOr<int> serenity_main(Main::Arguments)
 {
     Core::EventLoop event_loop;
-    TRY(Core::System::pledge("stdio recvfd sendfd accept unix rpath"));
+    TRY(Core::System::pledge("stdio recvfd sendfd accept unix rpath thread"));
 
     // This must be first; we can't check if /tmp/webdriver exists once we've unveiled other paths.
     if (Core::Stream::File::exists("/tmp/webdriver"sv))

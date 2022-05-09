@@ -41,6 +41,8 @@ public:
     virtual ThrowCompletionOr<Value> internal_call(Value this_argument, MarkedVector<Value> arguments_list) override;
     virtual ThrowCompletionOr<Object*> internal_construct(MarkedVector<Value> arguments_list, FunctionObject& new_target) override;
 
+    ThrowCompletionOr<Value> call_in_context(ExecutionContext&, Value this_argument);
+
     void make_method(Object& home_object);
 
     Statement const& ecmascript_code() const { return m_ecmascript_code; }

@@ -1510,7 +1510,7 @@ private:
 
 ErrorOr<int> serenity_main(Main::Arguments arguments)
 {
-    TRY(Core::System::pledge("stdio rpath wpath cpath tty sigaction"));
+    TRY(Core::System::pledge("stdio rpath wpath cpath tty sigaction thread"));
 
     bool gc_on_every_allocation = false;
     bool disable_syntax_highlight = false;

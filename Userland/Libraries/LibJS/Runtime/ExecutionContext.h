@@ -17,6 +17,7 @@
 
 namespace JS {
 
+class GeneratorObject;
 using ScriptOrModule = Variant<Empty, NonnullGCPtr<Script>, NonnullGCPtr<Module>>;
 
 // 9.4 Execution Contexts, https://tc39.es/ecma262/#sec-execution-contexts
@@ -66,6 +67,7 @@ public:
     Value this_value;
     MarkedVector<Value> arguments;
     bool is_strict_mode { false };
+    GeneratorObject* generator_function { nullptr };
 
     // https://html.spec.whatwg.org/multipage/webappapis.html#skip-when-determining-incumbent-counter
     // FIXME: Move this out of LibJS (e.g. by using the CustomData concept), as it's used exclusively by LibWeb.

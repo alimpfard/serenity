@@ -24,6 +24,7 @@
 #include <LibJS/Runtime/ECMAScriptFunctionObject.h>
 #include <LibJS/Runtime/Error.h>
 #include <LibJS/Runtime/FunctionEnvironment.h>
+#include <LibJS/Runtime/GeneratorObject.h>
 #include <LibJS/Runtime/GlobalObject.h>
 #include <LibJS/Runtime/IteratorOperations.h>
 #include <LibJS/Runtime/NativeFunction.h>
@@ -531,10 +532,15 @@ Completion SuperCall::execute(Interpreter& interpreter) const
 }
 
 // 15.5.5 Runtime Semantics: Evaluation, https://tc39.es/ecma262/#sec-generator-function-definitions-runtime-semantics-evaluation
-Completion YieldExpression::execute(Interpreter&) const
+Completion YieldExpression::execute(Interpreter& interpreter) const
 {
-    // This should be transformed to a return.
-    VERIFY_NOT_REACHED();
+    auto* function = interpreter.vm().running_execution_context().generator_function;
+    VERIFY(function != nullptr);
+    auto argument = m_argument->execute(interpreter);
+    if (argument.is_abrupt())
+        return function->yield(argument.release_error());
+
+    return function->yield(argument.release_value().value_or(js_undefined()));
 }
 
 // 15.8.5 Runtime Semantics: Evaluation, https://tc39.es/ecma262/#sec-async-function-definitions-runtime-semantics-evaluation

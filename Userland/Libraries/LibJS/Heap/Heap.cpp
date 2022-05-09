@@ -53,6 +53,7 @@ Heap::Heap(VM& vm)
     m_allocators.append(make<CellAllocator>(512));
     m_allocators.append(make<CellAllocator>(1024));
     m_allocators.append(make<CellAllocator>(3072));
+    m_allocators.append(make<CellAllocator>(8 * KiB));
 }
 
 Heap::~Heap()

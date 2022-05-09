@@ -134,20 +134,11 @@ void ECMAScriptFunctionObject::initialize(Realm& realm)
     }
 }
 
-// 10.2.1 [[Call]] ( thisArgument, argumentsList ), https://tc39.es/ecma262/#sec-ecmascript-function-objects-call-thisargument-argumentslist
-ThrowCompletionOr<Value> ECMAScriptFunctionObject::internal_call(Value this_argument, MarkedVector<Value> arguments_list)
+ThrowCompletionOr<Value> ECMAScriptFunctionObject::call_in_context(ExecutionContext& callee_context, Value this_argument)
 {
     auto& vm = this->vm();
 
     // 1. Let callerContext be the running execution context.
-    // NOTE: No-op, kept by the VM in its execution context stack.
-
-    ExecutionContext callee_context(heap());
-
-    // Non-standard
-    callee_context.arguments.extend(move(arguments_list));
-    if (auto* interpreter = vm.interpreter_if_exists())
-        callee_context.current_node = interpreter->current_node();
 
     // 2. Let calleeContext be PrepareForOrdinaryCall(F, undefined).
     // NOTE: We throw if the end of the native stack is reached, so unlike in the spec this _does_ need an exception check.
@@ -190,6 +181,24 @@ ThrowCompletionOr<Value> ECMAScriptFunctionObject::internal_call(Value this_argu
 
     // 10. Return undefined.
     return js_undefined();
+}
+
+// 10.2.1 [[Call]] ( thisArgument, argumentsList ), https://tc39.es/ecma262/#sec-ecmascript-function-objects-call-thisargument-argumentslist
+ThrowCompletionOr<Value> ECMAScriptFunctionObject::internal_call(Value this_argument, MarkedVector<Value> arguments_list)
+{
+    auto& vm = this->vm();
+
+    // 1. Let callerContext be the running execution context.
+    // NOTE: No-op, kept by the VM in its execution context stack.
+
+    ExecutionContext callee_context(heap());
+
+    // Non-standard
+    callee_context.arguments.extend(move(arguments_list));
+    if (auto* interpreter = vm.interpreter_if_exists())
+        callee_context.current_node = interpreter->current_node();
+
+    return call_in_context(callee_context, this_argument);
 }
 
 // 10.2.2 [[Construct]] ( argumentsList, newTarget ), https://tc39.es/ecma262/#sec-ecmascript-function-objects-construct-argumentslist-newtarget
@@ -846,8 +855,6 @@ Completion ECMAScriptFunctionObject::ordinary_call_evaluate_body()
         VERIFY(m_kind == FunctionKind::Generator);
         return { Completion::Type::Return, generator_object, {} };
     } else {
-        if (m_kind == FunctionKind::Generator)
-            return vm.throw_completion<InternalError>(ErrorType::NotImplemented, "Generator function execution in AST interpreter");
         OwnPtr<Interpreter> local_interpreter;
         Interpreter* ast_interpreter = vm.interpreter_if_exists();
 
@@ -859,7 +866,7 @@ Completion ECMAScriptFunctionObject::ordinary_call_evaluate_body()
         VM::InterpreterExecutionScope scope(*ast_interpreter);
 
         // FunctionBody : FunctionStatementList
-        if (m_kind == FunctionKind::Normal) {
+        if (m_kind == FunctionKind::Normal || (vm.running_execution_context().generator_function && vm.running_execution_context().generator_function->function_object() == this)) {
             // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
             TRY(function_declaration_instantiation(ast_interpreter));
 
@@ -887,6 +894,10 @@ Completion ECMAScriptFunctionObject::ordinary_call_evaluate_body()
 
             // 5. Return Completion Record { [[Type]]: return, [[Value]]: promiseCapability.[[Promise]], [[Target]]: empty }.
             return Completion { Completion::Type::Return, promise_capability->promise(), {} };
+        } else if (m_kind == FunctionKind::Generator) {
+            TRY(function_declaration_instantiation(nullptr));
+            auto generator_object = TRY(GeneratorObject::create_ast(realm, this, vm.running_execution_context().copy()));
+            return JS::Completion { Completion::Type::Return, generator_object, {} };
         }
     }
     VERIFY_NOT_REACHED();
