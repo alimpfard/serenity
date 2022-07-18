@@ -10,6 +10,10 @@
 #include "LibRegex/RegexMatcher.h"
 #include <AK/Debug.h>
 
+#ifdef __serenity__
+#    include <serenity.h>
+#endif
+
 namespace regex {
 
 class RegexDebug {
@@ -42,7 +46,7 @@ public:
     {
         MatchState state;
         for (;;) {
-            auto& opcode = bytecode.get_opcode(state);
+            auto& opcode = bytecode.get_opcode(state, {});
             print_opcode("PrintBytecode", opcode, state);
             out(m_file, "{}", m_debug_stripline);
 
@@ -122,6 +126,20 @@ private:
     String m_debug_stripline;
     FILE* m_file;
 };
+
+template<typename... Args>
+static void emit_signpost(int id, CheckedFormatString<Args...> message, Args... args)
+{
+#ifdef __serenity__
+    auto string = String::formatted(message.view(), args...);
+    auto string_id = perf_register_string(string.characters(), string.length());
+    perf_event(PERF_EVENT_SIGNPOST, string_id, id);
+#else
+    ((void)args, ...);
+    (void)message;
+    (void)id;
+#endif
+}
 
 }
 

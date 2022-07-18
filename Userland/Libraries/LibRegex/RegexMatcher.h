@@ -230,9 +230,13 @@ public:
     using BasicBlockList = Vector<Detail::Block>;
     static BasicBlockList split_basic_blocks(ByteCode const&);
 
+    auto& bytecode_cache() const { return m_bytecode_cache; }
+
 private:
     void run_optimization_passes();
     void attempt_rewrite_loops_as_atomic_groups(BasicBlockList const&);
+
+    Optional<Vector<ByteCodeValueType> const&> m_bytecode_cache;
 };
 
 // free standing functions for match, search and has_match

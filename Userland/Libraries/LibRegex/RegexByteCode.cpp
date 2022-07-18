@@ -185,13 +185,20 @@ ALWAYS_INLINE OpCode& ByteCode::get_opcode_by_id(OpCodeId id) const
     return *opcode;
 }
 
-OpCode& ByteCode::get_opcode(MatchState& state) const
+OpCode& ByteCode::get_opcode(MatchState& state, Optional<Vector<ByteCodeValueType> const&> cache) const
 {
     OpCodeId opcode_id;
-    if (auto opcode_ptr = static_cast<DisjointChunks<ByteCodeValueType> const&>(*this).find(state.instruction_position))
-        opcode_id = (OpCodeId)*opcode_ptr;
-    else
-        opcode_id = OpCodeId::Exit;
+    if (cache.has_value()) {
+        if (cache->size() <= state.instruction_position)
+            opcode_id = OpCodeId::Exit;
+        else
+            opcode_id = (OpCodeId)cache->at(state.instruction_position);
+    } else {
+        if (auto opcode_ptr = static_cast<DisjointChunks<ByteCodeValueType> const&>(*this).find(state.instruction_position))
+            opcode_id = (OpCodeId)*opcode_ptr;
+        else
+            opcode_id = OpCodeId::Exit;
+    }
 
     auto& opcode = get_opcode_by_id(opcode_id);
     opcode.set_state(state);

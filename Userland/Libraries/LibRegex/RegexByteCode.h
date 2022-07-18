@@ -502,7 +502,7 @@ public:
         bytecode_to_repeat = move(bytecode);
     }
 
-    OpCode& get_opcode(MatchState& state) const;
+    OpCode& get_opcode(MatchState& state, Optional<Vector<ByteCodeValueType> const&> cache) const;
 
 private:
     void insert_string(StringView view)

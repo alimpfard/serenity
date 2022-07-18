@@ -21,6 +21,8 @@ using Detail::Block;
 template<typename Parser>
 void Regex<Parser>::run_optimization_passes()
 {
+    auto pattern_hash = pattern_value.hash();
+    emit_signpost(pattern_hash, "Regex /{}{}/: begin optimizations", pattern_value.substring_view(0, min(pattern_value.length(), 15)), pattern_value.length() > 15 ? "{...}" : "");
     parser_result.bytecode.flatten();
 
     // Rewrite fork loops as atomic groups
@@ -28,6 +30,11 @@ void Regex<Parser>::run_optimization_passes()
     attempt_rewrite_loops_as_atomic_groups(split_basic_blocks(parser_result.bytecode));
 
     parser_result.bytecode.flatten();
+
+    if (!parser_result.bytecode.is_empty())
+        m_bytecode_cache = static_cast<DisjointChunks<ByteCodeValueType>&>(parser_result.bytecode).first_chunk();
+
+    emit_signpost(pattern_hash, "Regex /{}{}/: end optimizations", pattern_value.substring_view(0, min(pattern_value.length(), 15)), pattern_value.length() > 15 ? "{...}" : "");
 }
 
 template<typename Parser>
@@ -61,7 +68,7 @@ typename Regex<Parser>::BasicBlockList Regex<Parser>::split_basic_blocks(ByteCod
         }
     };
     for (;;) {
-        auto& opcode = bytecode.get_opcode(state);
+        auto& opcode = bytecode.get_opcode(state, {});
 
         switch (opcode.opcode_id()) {
         case OpCodeId::Jump:
@@ -297,7 +304,7 @@ static AtomicRewritePreconditionResult block_satisfies_atomic_rewrite_preconditi
     HashTable<size_t> active_capture_groups;
     MatchState state;
     for (state.instruction_position = repeated_block.start; state.instruction_position < repeated_block.end;) {
-        auto& opcode = bytecode.get_opcode(state);
+        auto& opcode = bytecode.get_opcode(state, {});
         switch (opcode.opcode_id()) {
         case OpCodeId::Compare: {
             auto compares = static_cast<OpCode_Compare const&>(opcode).flat_compares();
@@ -335,7 +342,7 @@ static AtomicRewritePreconditionResult block_satisfies_atomic_rewrite_preconditi
     bool following_block_has_at_least_one_compare = false;
     // Find the first compare in the following block, it must NOT match any of the values in `repeated_values'.
     for (state.instruction_position = following_block.start; state.instruction_position < following_block.end;) {
-        auto& opcode = bytecode.get_opcode(state);
+        auto& opcode = bytecode.get_opcode(state, {});
         switch (opcode.opcode_id()) {
         // Note: These have to exist since we're effectively repeating the following block as well
         case OpCodeId::SaveRightCaptureGroup:
@@ -473,7 +480,7 @@ void Regex<Parser>::attempt_rewrite_loops_as_atomic_groups(BasicBlockList const&
         // Check if the last instruction in this block is a jump to the block itself:
         {
             state.instruction_position = forking_block.end;
-            auto& opcode = bytecode.get_opcode(state);
+            auto& opcode = bytecode.get_opcode(state, {});
             if (is_an_eligible_jump(opcode, state.instruction_position, forking_block.start, AlternateForm::DirectLoopWithoutHeader)) {
                 // We've found RE0 (and RE1 is just the following block, if any), let's see if the precondition applies.
                 // if RE1 is empty, there's no first(RE1), so this is an automatic pass.
@@ -496,11 +503,11 @@ void Regex<Parser>::attempt_rewrite_loops_as_atomic_groups(BasicBlockList const&
         // Check if the last instruction in the last block is a direct jump to this block
         if (fork_fallback_block.has_value()) {
             state.instruction_position = fork_fallback_block->end;
-            auto& opcode = bytecode.get_opcode(state);
+            auto& opcode = bytecode.get_opcode(state, {});
             if (is_an_eligible_jump(opcode, state.instruction_position, forking_block.start, AlternateForm::DirectLoopWithHeader)) {
                 // We've found bb1 and bb0, let's just make sure that bb0 forks to bb2.
                 state.instruction_position = forking_block.end;
-                auto& opcode = bytecode.get_opcode(state);
+                auto& opcode = bytecode.get_opcode(state, {});
                 if (opcode.opcode_id() == OpCodeId::ForkJump || opcode.opcode_id() == OpCodeId::ForkStay) {
                     Optional<Block> block_following_fork_fallback;
                     if (i + 2 < basic_blocks.size())
@@ -559,7 +566,7 @@ void Regex<Parser>::attempt_rewrite_loops_as_atomic_groups(BasicBlockList const&
             if (state.instruction_position >= bytecode_size)
                 break;
 
-            auto& opcode = bytecode.get_opcode(state);
+            auto& opcode = bytecode.get_opcode(state, {});
             Stack<Patch, 2> patch_points;
 
             switch (opcode.opcode_id()) {
@@ -698,7 +705,7 @@ void Optimizer::append_alternation(ByteCode& target, Span<ByteCode> alternatives
             state.instruction_position = block.start;
             size_t skip = 0;
             while (state.instruction_position < end) {
-                auto& opcode = entry.get_opcode(state);
+                auto& opcode = entry.get_opcode(state, {});
                 state.instruction_position += opcode.size();
                 skip = state.instruction_position;
             }

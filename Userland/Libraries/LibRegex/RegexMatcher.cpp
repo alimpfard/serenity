@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include "RegexDebug.h"
 #include <AK/BumpAllocator.h>
 #include <AK/Debug.h>
 #include <AK/String.h>
@@ -414,13 +415,16 @@ private:
 template<class Parser>
 bool Matcher<Parser>::execute(MatchInput const& input, MatchState& state, size_t& operations) const
 {
+    auto pattern_hash = m_pattern->pattern_value.hash();
+    emit_signpost(pattern_hash, "Regex /{}{}/: begin execution", m_pattern->pattern_value.substring_view(0, min(m_pattern->pattern_value.length(), 15)), m_pattern->pattern_value.length() > 15 ? "{...}" : "");
+
     BumpAllocatedLinkedList<MatchState> states_to_try_next;
     size_t recursion_level = 0;
 
     auto& bytecode = m_pattern->parser_result.bytecode;
 
     for (;;) {
-        auto& opcode = bytecode.get_opcode(state);
+        auto& opcode = bytecode.get_opcode(state, m_pattern->bytecode_cache());
         ++operations;
 
 #if REGEX_DEBUG
@@ -489,15 +493,18 @@ bool Matcher<Parser>::execute(MatchInput const& input, MatchState& state, size_t
         case ExecutionResult::Continue:
             continue;
         case ExecutionResult::Succeeded:
+            emit_signpost(pattern_hash, "Regex /{}{}/: finish execution: success", m_pattern->pattern_value.substring_view(0, min(m_pattern->pattern_value.length(), 15)), m_pattern->pattern_value.length() > 15 ? "{...}" : "");
             return true;
         case ExecutionResult::Failed:
             if (!states_to_try_next.is_empty()) {
                 state = states_to_try_next.take_last();
                 continue;
             }
+            emit_signpost(pattern_hash, "Regex /{}{}/: finish execution: failure", m_pattern->pattern_value.substring_view(0, min(m_pattern->pattern_value.length(), 15)), m_pattern->pattern_value.length() > 15 ? "{...}" : "");
             return false;
         case ExecutionResult::Failed_ExecuteLowPrioForks: {
             if (states_to_try_next.is_empty()) {
+                emit_signpost(pattern_hash, "Regex /{}{}/: finish execution: failure", m_pattern->pattern_value.substring_view(0, min(m_pattern->pattern_value.length(), 15)), m_pattern->pattern_value.length() > 15 ? "{...}" : "");
                 return false;
             }
             state = states_to_try_next.take_last();
