@@ -318,4 +318,14 @@ void Application::event(Core::Event& event)
     Object::event(event);
 }
 
+AnimationManager& Application::ensure_animation_manager()
+{
+    if (!m_animation_manager) {
+        m_animation_manager = AnimationManager::construct();
+        m_animation_manager->start_timer(AnimationManager::time_quantum);
+    }
+
+    return *m_animation_manager;
+}
+
 }

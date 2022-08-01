@@ -12,6 +12,7 @@
 #include <AK/WeakPtr.h>
 #include <LibCore/EventLoop.h>
 #include <LibCore/Object.h>
+#include <LibGUI/Animation.h>
 #include <LibGUI/Forward.h>
 #include <LibGUI/Shortcut.h>
 #include <LibGUI/Widget.h>
@@ -87,6 +88,8 @@ public:
 
     auto const& global_shortcut_actions(Badge<GUI::CommandPalette>) const { return m_global_shortcut_actions; }
 
+    AnimationManager& ensure_animation_manager();
+
 private:
     Application(int argc, char** argv, Core::EventLoop::MakeInspectable = Core::EventLoop::MakeInspectable::No);
     Application(Main::Arguments const& arguments, Core::EventLoop::MakeInspectable inspectable = Core::EventLoop::MakeInspectable::No)
@@ -120,6 +123,7 @@ private:
     Vector<String> m_args;
     WeakPtr<Widget> m_drag_hovered_widget;
     WeakPtr<Widget> m_pending_drop_widget;
+    RefPtr<AnimationManager> m_animation_manager;
 };
 
 }

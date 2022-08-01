@@ -13,6 +13,7 @@ set(SOURCES
     AbstractZoomPanWidget.cpp
     Action.cpp
     ActionGroup.cpp
+    Animation.cpp
     Application.cpp
     AutocompleteProvider.cpp
     BoxLayout.cpp

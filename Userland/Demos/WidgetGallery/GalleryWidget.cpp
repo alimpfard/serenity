@@ -14,6 +14,7 @@
 #include <Demos/WidgetGallery/SlidersTabGML.h>
 #include <Demos/WidgetGallery/WindowGML.h>
 #include <Demos/WidgetGallery/WizardsTabGML.h>
+#include <LibGUI/Application.h>
 #include <LibGUI/Button.h>
 #include <LibGUI/ColorInput.h>
 #include <LibGUI/FilePicker.h>
@@ -102,6 +103,41 @@ GalleryWidget::GalleryWidget()
             m_text_editor->set_font(picker->font());
         }
     };
+
+    // clang-format off
+    (void)GUI::Application::the()->ensure_animation_manager().add_all(
+        (*m_font_button)
+            .begin_animation_description()
+                .begin([button = m_font_button](double value) mutable {
+                    button->set_text(String::formatted("Foo {}", trunc(value)));
+                })
+                    .bounds(0, 100)
+                    .type(GUI::AnimationInterpolator::PredefinedType::Linear)
+                    .duration(300)
+                    .repeat(10)
+                .end()
+                .begin([button = m_font_button](Gfx::Color color) mutable {
+                    auto palette = button->palette();
+                    palette.set_color(ColorRole::Button, color);
+                    button->set_palette(palette);
+                })
+                    .bounds(Gfx::Color::Green, Gfx::Color::Red)
+                    .type(GUI::AnimationInterpolator::PredefinedType::Linear)
+                    .duration(300)
+                    .repeat(10)
+                .end()
+                .begin([button = m_font_button](i64 offset) mutable {
+                    auto rect = button->rect();
+                    rect.set_bottom_without_resize(AK::abs(90 - offset));
+                    button->set_relative_rect(rect);
+                })
+                    .bounds(0, 180)
+                    .type(GUI::AnimationInterpolator::PredefinedType::Bezier)
+                    .duration(100)
+                    .repeat(10)
+                .end()
+            .end());
+    // clang-format on
 
     m_file_button = basics_tab->find_descendant_of_type_named<GUI::Button>("file_button");
     m_file_button->set_icon(Gfx::Bitmap::try_load_from_file("/res/icons/16x16/open.png"sv).release_value_but_fixme_should_propagate_errors());

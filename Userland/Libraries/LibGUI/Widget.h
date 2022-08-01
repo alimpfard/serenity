@@ -14,6 +14,7 @@
 #include <AK/Variant.h>
 #include <LibCore/Object.h>
 #include <LibCore/Timer.h>
+#include <LibGUI/AnimationBuilder.h>
 #include <LibGUI/Event.h>
 #include <LibGUI/FocusPolicy.h>
 #include <LibGUI/Forward.h>
@@ -360,6 +361,8 @@ public:
     // In order for others to be able to call this, it needs to be public.
     virtual bool load_from_gml_ast(NonnullRefPtr<GUI::GML::Node> ast, RefPtr<Core::Object> (*unregistered_child_handler)(String const&));
 
+    auto begin_animation_description() { return AnimationBuilder(*this); }
+
 protected:
     Widget();
 
@@ -463,7 +466,7 @@ inline Widget* Widget::parent_widget()
 inline Widget const* Widget::parent_widget() const
 {
     if (parent() && is<Widget>(*parent()))
-        return &verify_cast<const Widget>(*parent());
+        return &verify_cast<Widget const>(*parent());
     return nullptr;
 }
 }
