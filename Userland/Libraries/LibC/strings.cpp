@@ -70,4 +70,9 @@ int ffsll(long long int i)
 {
     return bit_scan_forward(i);
 }
+
+int bcmp(void const* s1, void const* s2, size_t n)
+{
+    return memcmp(s1, s2, n) != 0;
+}
 }

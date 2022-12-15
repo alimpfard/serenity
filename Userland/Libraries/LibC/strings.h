@@ -18,5 +18,6 @@ void bcopy(void const*, void*, size_t);
 int ffs(int);
 int ffsl(long int);
 int ffsll(long long int);
+[[deprecated]] int bcmp(void const* s1, void const* s2, size_t n);
 
 __END_DECLS

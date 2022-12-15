@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/DeprecatedString.h>
 #include <AK/Format.h>
 #include <assert.h>
 #include <stdio.h>
@@ -31,5 +32,12 @@ void __assertion_failed(char const* msg)
     };
     syscall(SC_set_coredump_metadata, &params);
     abort();
+}
+
+void __assert_fail(char const* __assertion, char const* __file, unsigned int __line, char const* __function);
+void __assert_fail(char const* __assertion, char const* __file, unsigned int __line, char const* __function)
+{
+    auto str = DeprecatedString::formatted("Assertion '{}' failed at {}:{} in function {}", __assertion, __file, __line, __function);
+    __assertion_failed(str.characters());
 }
 }
