@@ -17,4 +17,5 @@ if (JAKT_SOURCE_DIR)
 endif()
 
 set(JAKT_BUILD_TESTING OFF)
+set(SERENITY_SOURCE_DIR ${CMAKE_SOURCE_DIR})
 FetchContent_MakeAvailable(jakt)

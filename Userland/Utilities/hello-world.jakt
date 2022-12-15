@@ -1,3 +1,24 @@
+import serenity::gui::application { Application }
+import serenity::gui::window { Window }
+
+function null<T>() -> raw T {
+    unsafe {
+        cpp { "return nullptr;" }
+    }
+
+    abort()
+}
+
 function main() {
-    println("Hello, World, from jakt!");
+    mut application = Application::construct(argc: 0, argv: null<raw c_char>())
+
+    mut window = Window::create()
+    window.resize(width: 480, height: 250)
+    window.center_on_screen()
+    window.set_title(title: "Hello, World!")
+
+    window.show()
+    println("Hello, World!")
+
+    application.exec()
 }

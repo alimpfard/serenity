@@ -53,8 +53,10 @@ endforeach()
 if (ENABLE_JAKT)
     add_jakt_executable(hello-jakt
         MAIN_SOURCE hello-world.jakt
+        INCLUDES ${CMAKE_SOURCE_DIR}/Userland/Libraries/Jakt
     )
-    target_link_libraries(hello-jakt PRIVATE LibC)
+    target_link_libraries(hello-jakt PRIVATE LibC LibCore LibGUI)
+    target_compile_options(hello-jakt PRIVATE "-DJAKT_USING_AK_AS_STANDARD_LIBRARY=1")
     set_target_properties(hello-jakt PROPERTIES EXCLUDE_FROM_ALL TRUE)
     install(TARGETS hello-jakt RUNTIME DESTINATION bin OPTIONAL)
     serenity_component(
