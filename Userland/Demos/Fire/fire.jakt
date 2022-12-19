@@ -1,0 +1,163 @@
+import serenity::core::elapsed_timer {ElapsedTimer}
+import serenity::core::event {TimerEvent}
+import serenity::core::system {pledge, unveil}
+import serenity::gfx::bitmap {Bitmap, BitmapFormat}
+import serenity::gfx::color {Color}
+import serenity::gfx::rect {Rect}
+import serenity::gfx::size {Size}
+import serenity::gui::action {Action, CommonActions}
+import serenity::gui::application {Application}
+import serenity::gui::event {PaintEvent, MouseEvent}
+import serenity::gui::frame {Frame}
+import serenity::gui::label {Label}
+import serenity::gui::painter {Painter}
+import serenity::gui::window {Window}
+import serenity::AK::random {get_random}
+
+class Fire: Frame {
+    bitmap: Bitmap
+    fire_palette: [Color]
+    dragging: bool = false
+    time_avg: i32 = 0
+    cycles: u32 = 0
+    phase: i32 = 0
+
+    public function try_create() throws -> Fire {
+        let fire_width = 320i32
+        let fire_height = 200i32
+        let fire_max = 29u8
+
+        mut bitmap = Bitmap::create(
+            format: BitmapFormat::Indexed8
+            size: Size(width: fire_width, height: fire_height)
+        )
+
+        // Initialize fire palette
+        let fire_palette = [
+            Color(0x07, 0x07, 0x07), Color(0x1F, 0x07, 0x07), Color(0x2F, 0x0F, 0x07)
+            Color(0x47, 0x0F, 0x07), Color(0x57, 0x17, 0x07), Color(0x67, 0x1F, 0x07)
+            Color(0x77, 0x1F, 0x07), Color(0x9F, 0x2F, 0x07), Color(0xAF, 0x3F, 0x07)
+            Color(0xBF, 0x47, 0x07), Color(0xC7, 0x47, 0x07), Color(0xDF, 0x4F, 0x07)
+            Color(0xDF, 0x57, 0x07), Color(0xD7, 0x5F, 0x07), Color(0xD7, 0x5F, 0x07)
+            Color(0xD7, 0x67, 0x0F), Color(0xCF, 0x6F, 0x0F), Color(0xCF, 0x7F, 0x0F)
+            Color(0xCF, 0x87, 0x17), Color(0xC7, 0x87, 0x17), Color(0xC7, 0x8F, 0x17)
+            Color(0xC7, 0x97, 0x1F), Color(0xBF, 0x9F, 0x1F), Color(0xBF, 0xA7, 0x27)
+            Color(0xBF, 0xAF, 0x2F), Color(0xB7, 0xAF, 0x2F), Color(0xB7, 0xB7, 0x37)
+            Color(0xCF, 0xCF, 0x6F), Color(0xEF, 0xEF, 0xC7), Color(0xFF, 0xFF, 0xFF)
+        ]
+        for i in 0..30u8 {
+            bitmap.set_palette_color(index: i, color: fire_palette[i])
+        }
+
+        // Set remaining entries to white
+        for i in (30..255u8).inclusive() {
+            bitmap.set_palette_color(index: i, color: Color(0xFF, 0xFF, 0xFF))
+        }
+
+        for i in 0..fire_width {
+            bitmap.set_pixel_from_palette(physical_x: i, physical_y: fire_height - 1, index: fire_max)
+        }
+
+        mut fire = Fire(
+            bitmap
+            fire_palette
+        )
+
+        fire.stop_timer()
+        fire.start_timer(interval_ms: 20)
+        return fire
+    }
+
+    override function paint_event(mut this, event: &mut PaintEvent) {
+        // super call how
+        // .paint_event(event)
+
+        mut timer = ElapsedTimer::start_new()
+
+        mut painter = Painter(this)
+
+        painter.add_clip_rect(event.rect())
+        painter.draw_scaled_bitmap(
+            dest_rect: .frame_inner_rect()
+            src: .bitmap
+            src_rect: .bitmap.rect()
+        )
+
+        .time_avg += timer.elapsed()
+        .cycles += 1
+    }
+    override function timer_event(mut this, event: &mut TimerEvent) {
+        .phase += 1
+        if .phase > 1 {
+            .phase = 0
+        }
+
+        for px in .phase..320 {
+            if px % 2 != .phase {
+                continue
+            }
+
+            for py in 1..200i32 {
+                let rnd = get_random<i32>() % 3
+
+                mut nv = .bitmap.get_pixel_from_palette(physical_x: px, physical_y: py) as! i32
+                if nv > 0 {
+                    nv -= rnd & 1
+                }
+
+                mut epx = px + 1 - rnd
+                if epx < 0 {
+                    epx = 0
+                } else if epx > 320 {
+                    epx = 320
+                }
+
+                .bitmap.set_pixel_from_palette(physical_x: epx, physical_y: py - 1, index: nv as! u8)
+            }
+        }
+
+        if .cycles % 50 == 0 {
+            eprintln("{} total cycles, finished 50 in {} ms, avg {}", .cycles, .time_avg, .time_avg / 50)
+            .time_avg = 0
+        }
+
+        .update()
+    }
+}
+
+function null<T>() -> raw T {
+    unsafe { cpp { "return nullptr;" } }
+    abort()
+}
+
+function main() {
+    let fire_width = 320i32
+    let fire_height = 200i32
+
+    mut app = Application::construct(argc: 0, argv: null<raw c_char>())
+
+    pledge("stdio recvfd sendfd rpath")
+    unveil("/res", "r")
+
+    mut window = Window::create()
+    window.set_double_buffering_enabled(false)
+    window.set_title("Fire")
+    window.set_resizable(false)
+    window.resize(width: fire_width * 2 + 4, height: fire_height * 2 + 4)
+
+    mut file_menu = window.add_menu("&File")
+
+    file_menu.add_action(CommonActions::make_quit_action(
+        function[app](anon x: &Action) -> void {
+            app.quit()
+            return
+        }
+    ))
+
+    // FIXME: Can't call it from jakt, Fire -> NNRP<Fire>
+    unsafe { cpp { "TRY(window->try_set_main_widget<Fire>());" } }
+
+    window.show()
+
+    return app.exec()
+}
