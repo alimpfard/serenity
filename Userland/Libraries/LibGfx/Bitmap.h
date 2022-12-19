@@ -231,6 +231,9 @@ public:
         set_pixel(physical_position.x(), physical_position.y(), color);
     }
 
+    void set_pixel_from_palette(int physical_x, int physical_y, u8 palette_index);
+    u8 get_pixel_from_palette(int physical_x, int physical_y);
+
     [[nodiscard]] bool is_volatile() const { return m_volatile; }
     void set_volatile();
 

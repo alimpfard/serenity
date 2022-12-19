@@ -607,6 +607,50 @@ Vector<ARGB32> Bitmap::palette_to_vector() const
     return vector;
 }
 
+void Bitmap::set_pixel_from_palette(int x, int y, u8 palette_index)
+{
+    VERIFY(is_indexed(m_format));
+    VERIFY(palette_index < palette_size(m_format));
+    auto* scanline = this->scanline(y);
+    switch (m_format) {
+    case BitmapFormat::Indexed8:
+        ((u8*)scanline)[x] = palette_index;
+        break;
+    case BitmapFormat::Indexed4:
+        if (x & 1)
+            ((u8*)scanline)[x / 2] = (((u8*)scanline)[x / 2] & 0x0f) | (palette_index << 4);
+        else
+            ((u8*)scanline)[x / 2] = (((u8*)scanline)[x / 2] & 0xf0) | palette_index;
+        break;
+    case BitmapFormat::Indexed2:
+        if (x & 3)
+            ((u8*)scanline)[x / 4] = (((u8*)scanline)[x / 4] & (0x03 << ((x & 3) * 2))) | (palette_index << ((x & 3) * 2));
+        else
+            ((u8*)scanline)[x / 4] = (((u8*)scanline)[x / 4] & 0xfc) | palette_index;
+        break;
+    case BitmapFormat::Indexed1:
+        if (x & 7)
+            ((u8*)scanline)[x / 8] = (((u8*)scanline)[x / 8] & (0x01 << (x & 7))) | (palette_index << (x & 7));
+        else
+            ((u8*)scanline)[x / 8] = (((u8*)scanline)[x / 8] & 0xfe) | palette_index;
+        break;
+    default:
+        VERIFY_NOT_REACHED();
+    }
+}
+
+u8 Bitmap::get_pixel_from_palette(int x, int y)
+{
+    VERIFY(is_indexed(m_format));
+    auto* scanline = this->scanline(y);
+    switch (m_format) {
+    case BitmapFormat::Indexed8:
+        return ((u8*)scanline)[x];
+    default:
+        TODO();
+    }
+}
+
 bool Bitmap::visually_equals(Bitmap const& other) const
 {
     auto own_width = width();
