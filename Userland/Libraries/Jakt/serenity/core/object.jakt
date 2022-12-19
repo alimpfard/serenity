@@ -1,0 +1,14 @@
+import serenity::core::event { TimerEvent }
+
+import extern "LibCore/Object.h" {
+    namespace Core {
+        extern class Object {
+            public function start_timer(mut this, interval_ms: i32)
+            public function stop_timer(mut this)
+
+            public virtual function timer_event(mut this, event: &mut TimerEvent)
+        }
+    }
+}
+
+use Core::Object

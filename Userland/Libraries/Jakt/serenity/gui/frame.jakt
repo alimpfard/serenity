@@ -1,0 +1,12 @@
+import serenity::gui::widget { Widget }
+import serenity::gfx::rect { Rect }
+
+import extern "LibGUI/Frame.h" {
+    namespace GUI {
+        extern class Frame : Widget {
+            public function frame_inner_rect(this) -> Rect<i32>
+        }
+    }
+}
+
+use GUI::Frame

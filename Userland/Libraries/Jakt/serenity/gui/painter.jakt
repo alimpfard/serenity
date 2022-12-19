@@ -1,0 +1,20 @@
+import serenity::gui::widget { Widget }
+import serenity::gfx::rect { Rect }
+import serenity::gfx::bitmap { Bitmap }
+
+import extern "LibGUI/Painter.h" {
+    namespace GUI {
+        extern struct Painter {
+            function Painter(anon x: Widget) -> Painter
+            function add_clip_rect(mut this, anon rect: Rect<i32>)
+            function draw_scaled_bitmap(
+                mut this
+                dest_rect: Rect<i32>
+                src: Bitmap
+                src_rect: Rect<i32>
+            )
+        }
+    }
+}
+
+use GUI::Painter

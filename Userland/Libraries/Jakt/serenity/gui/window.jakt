@@ -1,0 +1,23 @@
+import serenity::core::object { Object }
+import serenity::gui::menu { Menu }
+
+import extern "LibGUI/Window.h" {
+    namespace GUI {
+        extern class Window : Object {
+            [[name=try_create]]
+            public function create() throws -> Window
+            public function resize(mut this, width: i32, height: i32)
+            public function set_resizable(mut this, anon resizable: bool)
+            public function center_on_screen(mut this)
+            public function set_title(mut this, anon title: StringView)
+            public function try_set_main_widget<T>(mut this) throws -> T
+            public function set_main_widget<T>(mut this, anon widget: raw T)
+            public function set_double_buffering_enabled(mut this, anon enabled: bool)
+            public function show(mut this)
+            [[name=try_add_menu]]
+            public function add_menu(mut this, anon name: String) throws -> Menu
+        }
+    }
+}
+
+use GUI::Window

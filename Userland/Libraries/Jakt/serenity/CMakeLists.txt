@@ -1,0 +1,22 @@
+set(SERENITY_JAKT_SOURCES
+    AK/time.jakt
+    core/elapsed_timer.jakt
+    core/event.jakt
+    core/object.jakt
+    core/system.jakt
+    gfx/bitmap.jakt
+    gfx/color.jakt
+    gfx/rect.jakt
+    gfx/size.jakt
+    gui/action.jakt
+    gui/application.jakt
+    gui/bitmap.jakt
+    gui/event.jakt
+    gui/frame.jakt
+    gui/label.jakt
+    gui/menu.jakt
+    gui/menubar.jakt
+    gui/painter.Jakt
+    gui/widget.jakt
+    gui/window.jakt
+)

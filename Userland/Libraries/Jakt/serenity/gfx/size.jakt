@@ -1,0 +1,10 @@
+import extern "LibGfx/Size.h" {
+    namespace Gfx {
+        extern struct Size<T> {
+            function Size() -> Size<T>
+            function Size(width: T, height: T) -> Size<T>
+        }
+    }
+}
+
+use Gfx::Size

@@ -1,0 +1,8 @@
+import extern "LibCore/Event.h" {
+    namespace Core {
+        extern struct TimerEvent {
+        }
+    }
+}
+
+use Core::TimerEvent

@@ -1,0 +1,10 @@
+import serenity::core::object { Object }
+
+import extern "LibGUI/Menubar.h" {
+    namespace GUI {
+        extern class Menubar : Object {
+        }
+    }
+}
+
+use GUI::Menubar

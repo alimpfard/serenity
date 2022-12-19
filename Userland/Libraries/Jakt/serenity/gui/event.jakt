@@ -1,0 +1,14 @@
+import serenity::gfx::rect { Rect }
+
+import extern "LibGUI/Event.h" {
+    namespace GUI {
+        extern struct PaintEvent {
+            function rect(this) -> Rect<i32>
+        }
+        extern struct MouseEvent {
+        }
+    }
+}
+
+use GUI::PaintEvent
+use GUI::MouseEvent

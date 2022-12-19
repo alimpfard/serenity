@@ -1,0 +1,26 @@
+import serenity::gfx::color { Color }
+import serenity::gfx::rect { Rect }
+import serenity::gfx::size { Size }
+
+import extern "LibGfx/Bitmap.h" {
+    namespace Gfx {
+        enum BitmapFormat : i32 {
+            Invalid
+            Indexed8
+        }
+        extern class Bitmap {
+            [[name=try_create]]
+            public function create(format: BitmapFormat, size: Size<i32>) throws -> Bitmap
+
+            public function set_palette_color(mut this, index: u8, color: Color)
+
+            public function set_pixel_from_palette(mut this, physical_x: i32, physical_y: i32, index: u8)
+            public function get_pixel_from_palette(this, physical_x: i32, physical_y: i32) -> u8
+
+            public function rect(this) -> Rect<i32>
+        }
+    }
+}
+
+use Gfx::Bitmap
+use Gfx::BitmapFormat

@@ -1,0 +1,7 @@
+import extern "AK/Random.h" {
+    namespace AK {
+        extern function get_random<T>() -> T
+    }
+}
+
+use AK::get_random

@@ -1,0 +1,19 @@
+import serenity::core::object { Object }
+import serenity::gui::event { PaintEvent, MouseEvent }
+
+import extern "LibGUI/Widget.h" {
+    namespace GUI {
+        extern class Widget : Object {
+            public function construct() -> Widget
+
+            public virtual function paint_event(mut this, event: &mut PaintEvent)
+            public virtual function mousedown_event(mut this, event: &mut MouseEvent)
+            public virtual function mouseup_event(mut this, event: &mut MouseEvent)
+            public virtual function mousemove_event(mut this, event: &mut MouseEvent)
+
+            public virtual function update(mut this)
+        }
+    }
+}
+
+use GUI::Widget

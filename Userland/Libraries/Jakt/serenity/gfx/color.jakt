@@ -1,0 +1,11 @@
+import extern "LibGfx/Bitmap.h" {
+    namespace Gfx {
+        extern struct Color {
+            function Color(anon r: u8, anon g: u8, anon b: u8) -> Color
+            function Color(anon r: u8, anon g: u8, anon b: u8, anon a: u8) -> Color
+            function from_argb(anon argb: u32) -> Color
+        }
+    }
+}
+
+use Gfx::Color

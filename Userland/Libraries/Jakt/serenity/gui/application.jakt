@@ -1,0 +1,11 @@
+import extern "LibGUI/Application.h" {
+    namespace GUI {
+        extern class Application {
+            public function construct(argc: c_int, argv: raw raw c_char) -> Application
+            public function exec(mut this) -> c_int
+            public function quit(mut this)
+        }
+    }
+}
+
+use GUI::Application

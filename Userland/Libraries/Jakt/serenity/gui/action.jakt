@@ -1,0 +1,17 @@
+import serenity::core::object { Object }
+
+import extern "LibGUI/Action.h" {
+    namespace GUI {
+        extern class Action : Object {
+        }
+
+        namespace CommonActions {
+            extern function make_quit_action(
+                anon handler: function(anon action: &Action) -> void
+            ) -> Action
+        }
+    }
+}
+
+use GUI::Action
+use GUI::CommonActions

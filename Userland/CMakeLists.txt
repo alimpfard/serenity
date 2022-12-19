@@ -16,6 +16,8 @@ if (ENABLE_USERSPACE_COVERAGE_COLLECTION)
     endif()
 endif()
 
+add_subdirectory(Libraries/Jakt/serenity)
+
 add_subdirectory(Applications)
 add_subdirectory(Demos)
 add_subdirectory(DevTools)

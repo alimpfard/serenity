@@ -1,0 +1,11 @@
+import extern "LibCore/System.h" {
+    namespace Core {
+        namespace System {
+            extern function pledge(anon promises: StringView) throws -> void
+            extern function unveil(anon path: StringView, anon permissions: StringView) throws -> void
+        }
+    }
+}
+
+use Core::System::pledge
+use Core::System::unveil

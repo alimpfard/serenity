@@ -1,0 +1,12 @@
+import serenity::core::object { Object }
+import serenity::gui::action { Action }
+
+import extern "LibGUI/Menu.h" {
+    namespace GUI {
+        extern class Menu : Object {
+            public function add_action(mut this, anon action: Action)
+        }
+    }
+}
+
+use GUI::Menu

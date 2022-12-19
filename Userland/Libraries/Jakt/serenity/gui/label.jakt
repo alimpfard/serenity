@@ -1,0 +1,14 @@
+import serenity::gui::frame { Frame }
+
+import extern "LibGUI/Label.h" {
+    namespace GUI {
+        extern class Label : Frame {
+            function construct(anon text: String) -> Label
+
+            function set_text(mut this, anon text: String)
+            function text(this) -> String
+        }
+    }
+}
+
+use GUI::Label

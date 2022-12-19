@@ -1,0 +1,8 @@
+import extern "AK/Time.h" {
+    namespace AK {
+        extern struct Time {
+        }
+    }
+}
+
+use AK::Time

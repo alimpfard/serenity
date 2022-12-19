@@ -1,0 +1,18 @@
+import serenity::AK::time { Time }
+
+import extern "LibCore/ElapsedTimer.h" {
+    namespace Core {
+        extern struct ElapsedTimer {
+            function start_new() -> ElapsedTimer
+            function ElapsedTimer(precise: bool = false) -> ElapsedTimer
+
+            function is_valid(this) -> bool
+            function start(mut this)
+            function reset(mut this)
+            function elapsed(this) -> i32
+            function elapsed_time(this) -> Time
+        }
+    }
+}
+
+use Core::ElapsedTimer

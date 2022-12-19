@@ -1,0 +1,10 @@
+import extern "LibGfx/Rect.h" {
+    namespace Gfx {
+        extern struct Rect<T> {
+            function Rect() -> Rect<T>
+            function Rect(x: T, y: T, width: T, height: T) -> Rect<T>
+        }
+    }
+}
+
+use Gfx::Rect
