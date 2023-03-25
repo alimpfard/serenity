@@ -23,6 +23,8 @@ public:
     virtual ~Highlighter() = default;
 
     virtual Language language() const = 0;
+    virtual ErrorOr<Optional<String>> language_descriptor_name() const { return OptionalNone {}; }
+
     virtual Optional<StringView> comment_prefix() const = 0;
     virtual Optional<StringView> comment_suffix() const = 0;
     virtual void rehighlight(Palette const&) = 0;
