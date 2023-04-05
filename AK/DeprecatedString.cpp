@@ -441,4 +441,13 @@ ErrorOr<DeprecatedString> DeprecatedString::from_utf8(ReadonlyBytes bytes)
     return DeprecatedString { StringImpl::create(bytes) };
 }
 
+ErrorOr<DeprecatedString> DeprecatedString::concatenate(StringView other) const
+{
+    char* buffer;
+    auto new_impl = StringImpl::create_uninitialized(length() + other.length(), buffer);
+    memcpy(buffer, characters(), length());
+    memcpy(buffer + length(), other.characters_without_null_termination(), other.length());
+    return DeprecatedString { move(new_impl) };
+}
+
 }

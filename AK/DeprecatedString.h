@@ -149,6 +149,8 @@ public:
         return trimmed_view;
     }
 
+    ErrorOr<DeprecatedString> concatenate(StringView) const;
+
     [[nodiscard]] bool equals_ignoring_ascii_case(StringView) const;
 
     [[nodiscard]] bool contains(StringView, CaseSensitivity = CaseSensitivity::CaseSensitive) const;

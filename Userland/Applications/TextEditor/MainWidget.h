@@ -138,6 +138,7 @@ private:
     RefPtr<GUI::Action> m_ini_highlight;
     RefPtr<GUI::Action> m_shell_highlight;
     RefPtr<GUI::Action> m_sql_highlight;
+    RefPtr<GUI::Action> m_custom_highlight;
 
     RefPtr<WebView::OutOfProcessWebView> m_page_view;
 

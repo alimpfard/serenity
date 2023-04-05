@@ -41,6 +41,7 @@
 #include <LibJS/SyntaxHighlighter.h>
 #include <LibMarkdown/Document.h>
 #include <LibSQL/AST/SyntaxHighlighter.h>
+#include <LibSyntax/TextMateHighlighter.h>
 #include <LibWeb/CSS/SyntaxHighlighter/SyntaxHighlighter.h>
 #include <LibWeb/HTML/SyntaxHighlighter/SyntaxHighlighter.h>
 #include <LibWebView/OutOfProcessWebView.h>
@@ -686,6 +687,28 @@ void MainWidget::initialize_menubar(GUI::Window& window)
     });
     syntax_actions.add_action(*m_sql_highlight);
     syntax_menu.add_action(*m_sql_highlight);
+
+    m_custom_highlight = GUI::Action::create_checkable("Custom TextMate Grammar...", [&](auto&) {
+        auto response = FileSystemAccessClient::Client::the().open_file(&window, "Select TextMate Grammar...");
+        if (response.is_error())
+            return;
+
+        auto file = response.release_value();
+        auto result = file.stream().read_until_eof();
+        if (result.is_error()) {
+            GUI::MessageBox::show(&window, "Unable to read file.\n"sv, "Error"sv, GUI::MessageBox::Type::Error);
+        } else {
+            auto rules_or_error = Syntax::TextMateImpl::Rules::parse_from_xml(StringView(result.value().data(), result.value().size()));
+            if (rules_or_error.is_error()) {
+                GUI::MessageBox::show(&window, rules_or_error.error().string_literal(), "Error"sv, GUI::MessageBox::Type::Error);
+            } else {
+                m_editor->set_syntax_highlighter(make<Syntax::TextMateHighlighter>(rules_or_error.release_value()));
+                m_editor->update();
+            }
+        }
+    });
+    syntax_actions.add_action(*m_custom_highlight);
+    syntax_menu.add_action(*m_custom_highlight);
 
     auto& help_menu = window.add_menu("&Help");
     help_menu.add_action(GUI::CommonActions::make_command_palette_action(&window));

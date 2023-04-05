@@ -38,6 +38,8 @@ StringView language_to_string(Language language)
         return "Shell"sv;
     case Language::SQL:
         return "SQL"sv;
+    case Language::Custom:
+        return "Custom"sv;
     }
     VERIFY_NOT_REACHED();
 }
@@ -69,6 +71,8 @@ StringView common_language_extension(Language language)
         return "sh"sv;
     case Language::SQL:
         return "sql"sv;
+    case Language::Custom:
+        return {};
     }
     VERIFY_NOT_REACHED();
 }
