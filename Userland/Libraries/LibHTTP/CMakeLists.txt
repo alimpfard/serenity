@@ -1,4 +1,5 @@
 set(SOURCES
+    HPack.cpp
     HttpRequest.cpp
     HttpResponse.cpp
     HttpsJob.cpp

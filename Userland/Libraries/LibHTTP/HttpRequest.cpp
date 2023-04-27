@@ -75,6 +75,43 @@ ErrorOr<ByteBuffer> HttpRequest::to_raw_request() const
     return builder.to_byte_buffer();
 }
 
+ErrorOr<Vector<Http2Frame>> HttpRequest::to_http2_request(HTTP2::Stream& stream) const
+{
+    Vector<Http2Frame> frames;
+    // Start with a Headers frame, but if the request has a body, we need to also send a Data frame.
+    StringBuilder path_builder;
+    TRY(path_builder.try_append(m_url.serialize_path()));
+    if (!m_url.query().is_empty())
+        TRY(path_builder.try_appendff("?{}", m_url.query()));
+
+    auto path = path_builder.to_deprecated_string();
+
+    TRY(frames.try_empend(
+        stream,
+        Http2Frame::Headers::Flags::None,
+        Http2Frame::Headers {
+            .block_fragment = TRY(stream.header_encoder().encode(
+                m_headers,
+                Vector<HTTP2::PseudoHeader> {
+                    { HTTP2::PseudoHeaderName::Method, method_name() },
+                    { HTTP2::PseudoHeaderName::Scheme, m_url.scheme() },
+                    { HTTP2::PseudoHeaderName::Authority, m_url.host() },
+                    { HTTP2::PseudoHeaderName::Path, move(path) },
+                })) }));
+
+    if (m_body.is_empty())
+        return frames;
+
+    TRY(frames.try_empend(
+        stream,
+        Http2Frame::Data::Flags::EndStream,
+        Http2Frame::Data {
+            .data = TRY(ByteBuffer::copy(m_body)),
+        }));
+
+    return frames;
+}
+
 ErrorOr<HttpRequest, HttpRequest::ParseError> HttpRequest::from_raw_request(ReadonlyBytes raw_request)
 {
     enum class State {

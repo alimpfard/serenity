@@ -13,6 +13,8 @@
 #include <AK/URL.h>
 #include <AK/Vector.h>
 #include <LibCore/Forward.h>
+#include <LibHTTP/Header.h>
+#include <LibHTTP/Http2Frame.h>
 
 namespace HTTP {
 
@@ -54,10 +56,7 @@ public:
         PUT,
     };
 
-    struct Header {
-        DeprecatedString name;
-        DeprecatedString value;
-    };
+    using Header = HTTP::Header;
 
     struct BasicAuthenticationCredentials {
         DeprecatedString username;
@@ -81,6 +80,8 @@ public:
 
     DeprecatedString method_name() const;
     ErrorOr<ByteBuffer> to_raw_request() const;
+
+    ErrorOr<Vector<Http2Frame>> to_http2_request(HTTP2::Stream&) const;
 
     void set_headers(HashMap<DeprecatedString, DeprecatedString> const&);
 
