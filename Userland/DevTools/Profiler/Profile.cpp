@@ -232,7 +232,7 @@ void Profile::rebuild_tree()
 Optional<MappedObject> g_kernel_debuginfo_object;
 OwnPtr<Debug::DebugInfo> g_kernel_debug_info;
 
-ErrorOr<NonnullOwnPtr<Profile>> Profile::load_from_perfcore_file(StringView path)
+ErrorOr<NonnullOwnPtr<Profile>> Profile::load_from_perfcore_file(StringView path, StringView load_root)
 {
     auto file = TRY(Core::File::open(path, Core::File::OpenMode::Read));
 
@@ -316,7 +316,7 @@ ErrorOr<NonnullOwnPtr<Profile>> Profile::load_from_perfcore_file(StringView path
 
             auto it = current_processes.find(event.pid);
             if (it != current_processes.end())
-                it->value->library_metadata.handle_mmap(ptr, size, name);
+                it->value->library_metadata.handle_mmap(ptr, size, name, load_root);
             continue;
         } else if (type_string == "munmap"sv) {
             event.data = Event::MunmapData {

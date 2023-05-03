@@ -48,8 +48,11 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
 {
     int pid = 0;
     StringView perfcore_file_arg;
+    StringView load_root;
+
     Core::ArgsParser args_parser;
     args_parser.add_option(pid, "PID to profile", "pid", 'p', "PID");
+    args_parser.add_option(load_root, "Root path to load from (default empty)", "load-root", 'r', "path");
     args_parser.add_positional_argument(perfcore_file_arg, "Path of perfcore file", "perfcore-file", Core::ArgsParser::Required::No);
     args_parser.parse(arguments);
 
@@ -70,7 +73,7 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
         perfcore_file = perfcore_file_arg;
     }
 
-    auto profile_or_error = Profile::load_from_perfcore_file(perfcore_file);
+    auto profile_or_error = Profile::load_from_perfcore_file(perfcore_file, load_root);
     if (profile_or_error.is_error()) {
         GUI::MessageBox::show(nullptr, DeprecatedString::formatted("{}", profile_or_error.error()), "Profiler"sv, GUI::MessageBox::Type::Error);
         return 0;

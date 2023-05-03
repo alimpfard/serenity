@@ -37,7 +37,7 @@ public:
         Debug::DebugInfo const& load_debug_info(FlatPtr base_address) const;
     };
 
-    void handle_mmap(FlatPtr base, size_t size, DeprecatedString const& name);
+    void handle_mmap(FlatPtr base, size_t size, DeprecatedString const& name, StringView load_root = ""sv);
     Library const* library_containing(FlatPtr) const;
 
 private:

@@ -56,7 +56,7 @@ unsigned Image::symbol_count() const
 
 void Image::dump() const
 {
-#if ELF_IMAGE_DEBUG
+#if 1
     dbgln("ELF::Image({:p}) {{", this);
     dbgln("    is_valid: {}", is_valid());
 
@@ -125,7 +125,7 @@ bool Image::parse()
         if (m_verbose_logging)
             dbgln("ELF::Image::parse(): ELF Header not valid");
         m_valid = false;
-        return false;
+        // return false;
     }
 
     auto result_or_error = validate_program_headers(header(), m_size, { m_buffer, m_size }, nullptr, m_verbose_logging);
@@ -133,13 +133,13 @@ bool Image::parse()
         if (m_verbose_logging)
             dbgln("ELF::Image::parse(): Failed validating ELF Program Headers");
         m_valid = false;
-        return false;
+        // return false;
     }
     if (!result_or_error.value()) {
         if (m_verbose_logging)
             dbgln("ELF::Image::parse(): ELF Program Headers not valid");
         m_valid = false;
-        return false;
+        // return false;
     }
 
     m_valid = true;

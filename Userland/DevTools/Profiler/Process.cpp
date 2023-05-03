@@ -50,14 +50,16 @@ static MappedObject* get_or_create_mapped_object(DeprecatedString const& path)
 
     auto file_or_error = Core::MappedFile::map(path);
     if (file_or_error.is_error()) {
+        dbgln("Failed to mmap {}", path);
         g_mapped_object_cache.set(path, {});
         return nullptr;
     }
     auto elf = ELF::Image(file_or_error.value()->bytes());
-    if (!elf.is_valid()) {
-        g_mapped_object_cache.set(path, {});
-        return nullptr;
-    }
+    // if (!elf.is_valid()) {
+    //     dbgln("Failed to load {} as an ELF file", path);
+    //     g_mapped_object_cache.set(path, {});
+    //     return nullptr;
+    // }
     auto new_mapped_object = adopt_own(*new MappedObject {
         .file = file_or_error.release_value(),
         .elf = elf,
@@ -67,7 +69,7 @@ static MappedObject* get_or_create_mapped_object(DeprecatedString const& path)
     return ptr;
 }
 
-void LibraryMetadata::handle_mmap(FlatPtr base, size_t size, DeprecatedString const& name)
+void LibraryMetadata::handle_mmap(FlatPtr base, size_t size, DeprecatedString const& name, StringView load_root)
 {
     StringView path;
     if (name.contains("Loader.so"sv))
@@ -94,17 +96,24 @@ void LibraryMetadata::handle_mmap(FlatPtr base, size_t size, DeprecatedString co
         if (path_string.starts_with('/'))
             full_path = path_string;
         else if (FileSystem::looks_like_shared_library(path_string))
-            full_path = DeprecatedString::formatted("/usr/lib/{}", path);
+            full_path = DeprecatedString::formatted("{}/usr/lib/{}", load_root, path);
         else
-            full_path = path_string;
+            full_path = DeprecatedString::formatted("{}{}", load_root, path_string);
+
+        dbgln("Full path = {}", full_path);
 
         auto* mapped_object = get_or_create_mapped_object(full_path);
         if (!mapped_object) {
-            full_path = DeprecatedString::formatted("/usr/local/lib/{}", path);
+            dbgln("Failed to map {}", full_path);
+            full_path = DeprecatedString::formatted("{}/usr/local/lib/{}", load_root, path);
             mapped_object = get_or_create_mapped_object(full_path);
-            if (!mapped_object)
+            if (!mapped_object) {
+                dbgln("Failed to map {}", full_path);
                 return;
+            }
         }
+
+        dbgln("Mapped library {} from {} size {}", path_string, base, size);
         m_libraries.set(path_string, adopt_own(*new Library { base, size, path_string, mapped_object, {} }));
     }
 }
