@@ -535,6 +535,9 @@ if (BUILD_LAGOM)
                     -sENVIRONMENT=web)
         endif()
 
+        add_executable(cssql ../../Userland/Utilities/cssql.cpp)
+        target_link_libraries(cssql LibSQL LibCrypto LibJS LibLine LibLocale LibMain LibTextCodec LibWeb Threads::Threads)
+
         add_executable(lzcat ../../Userland/Utilities/lzcat.cpp)
         target_link_libraries(lzcat LibCompress LibCore LibMain)
 

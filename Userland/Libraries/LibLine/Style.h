@@ -167,14 +167,46 @@ public:
 
     void unset_mask() const { m_mask = {}; }
 
-    void set(ItalicTag const&) { m_italic = true; }
-    void set(BoldTag const&) { m_bold = true; }
-    void set(UnderlineTag const&) { m_underline = true; }
-    void set(Background const& bg) { m_background = bg; }
-    void set(Foreground const& fg) { m_foreground = fg; }
-    void set(Hyperlink const& link) { m_hyperlink = link; }
-    void set(AnchoredTag const&) { m_is_anchored = true; }
-    void set(Mask const& mask) { m_mask = mask; }
+    void set(ItalicTag const&)
+    {
+        m_italic = true;
+        m_is_empty = false;
+    }
+    void set(BoldTag const&)
+    {
+        m_bold = true;
+        m_is_empty = false;
+    }
+    void set(UnderlineTag const&)
+    {
+        m_underline = true;
+        m_is_empty = false;
+    }
+    void set(Background const& bg)
+    {
+        m_background = bg;
+        m_is_empty = false;
+    }
+    void set(Foreground const& fg)
+    {
+        m_foreground = fg;
+        m_is_empty = false;
+    }
+    void set(Hyperlink const& link)
+    {
+        m_hyperlink = link;
+        m_is_empty = false;
+    }
+    void set(AnchoredTag const&)
+    {
+        m_is_anchored = true;
+        m_is_empty = false;
+    }
+    void set(Mask const& mask)
+    {
+        m_mask = mask;
+        m_is_empty = false;
+    }
 
     bool is_anchored() const { return m_is_anchored; }
     bool is_empty() const { return m_is_empty; }

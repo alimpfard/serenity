@@ -23,7 +23,7 @@ CSSStyleDeclaration::CSSStyleDeclaration(JS::Realm& realm)
 JS::ThrowCompletionOr<void> CSSStyleDeclaration::initialize(JS::Realm& realm)
 {
     MUST_OR_THROW_OOM(Base::initialize(realm));
-    set_prototype(&Bindings::ensure_web_prototype<Bindings::CSSStyleDeclarationPrototype>(realm, "CSSStyleDeclaration"));
+    // set_prototype(&Bindings::ensure_web_prototype<Bindings::CSSStyleDeclarationPrototype>(realm, "CSSStyleDeclaration"));
     return {};
 }
 
