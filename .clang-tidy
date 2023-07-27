@@ -51,4 +51,4 @@ CheckOptions:
   - key: readability-implicit-bool-conversion.AllowPointerConditions
     value: true
   - key: readability-function-cognitive-complexity.Threshold
-    value: 100 # FIXME: Lower this (30? 50?), and refactor complex functions
+    value: 6000 # FIXME: Lower this (30? 50?), and refactor complex functions

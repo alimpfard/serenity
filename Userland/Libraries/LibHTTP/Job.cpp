@@ -5,6 +5,9 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#define HTTPJOB_DEBUG 1
+#define JOB_DEBUG 1
+
 #include <AK/CharacterTypes.h>
 #include <AK/Debug.h>
 #include <AK/JsonObject.h>
@@ -20,71 +23,6 @@
 #include <unistd.h>
 
 namespace HTTP {
-
-static ErrorOr<ByteBuffer> handle_content_encoding(ByteBuffer const& buf, DeprecatedString const& content_encoding)
-{
-    dbgln_if(JOB_DEBUG, "Job::handle_content_encoding: buf has content_encoding={}", content_encoding);
-
-    // FIXME: Actually do the decompression of the data using streams, instead of all at once when everything has been
-    //        received. This will require that some of the decompression algorithms are implemented in a streaming way.
-    //        Gzip and Deflate are implemented using Stream, while Brotli uses the newer Core::Stream. The Gzip and
-    //        Deflate implementations will likely need to be changed to LibCore::Stream for this to work easily.
-
-    if (content_encoding == "gzip") {
-        if (!Compress::GzipDecompressor::is_likely_compressed(buf)) {
-            dbgln("Job::handle_content_encoding: buf is not gzip compressed!");
-        }
-
-        dbgln_if(JOB_DEBUG, "Job::handle_content_encoding: buf is gzip compressed!");
-
-        auto uncompressed = TRY(Compress::GzipDecompressor::decompress_all(buf));
-
-        if constexpr (JOB_DEBUG) {
-            dbgln("Job::handle_content_encoding: Gzip::decompress() successful.");
-            dbgln("  Input size: {}", buf.size());
-            dbgln("  Output size: {}", uncompressed.size());
-        }
-
-        return uncompressed;
-    } else if (content_encoding == "deflate") {
-        dbgln_if(JOB_DEBUG, "Job::handle_content_encoding: buf is deflate compressed!");
-
-        // Even though the content encoding is "deflate", it's actually deflate with the zlib wrapper.
-        // https://tools.ietf.org/html/rfc7230#section-4.2.2
-        auto uncompressed = Compress::ZlibDecompressor::decompress_all(buf);
-        if (!uncompressed.has_value()) {
-            // From the RFC:
-            // "Note: Some non-conformant implementations send the "deflate"
-            //        compressed data without the zlib wrapper."
-            dbgln_if(JOB_DEBUG, "Job::handle_content_encoding: ZlibDecompressor::decompress_all() failed. Trying DeflateDecompressor::decompress_all()");
-            uncompressed = TRY(Compress::DeflateDecompressor::decompress_all(buf));
-        }
-
-        if constexpr (JOB_DEBUG) {
-            dbgln("Job::handle_content_encoding: Deflate decompression successful.");
-            dbgln("  Input size: {}", buf.size());
-            dbgln("  Output size: {}", uncompressed.value().size());
-        }
-
-        return uncompressed.release_value();
-    } else if (content_encoding == "br") {
-        dbgln_if(JOB_DEBUG, "Job::handle_content_encoding: buf is brotli compressed!");
-
-        FixedMemoryStream bufstream { buf };
-        auto brotli_stream = Compress::BrotliDecompressionStream { bufstream };
-
-        auto uncompressed = TRY(brotli_stream.read_until_eof());
-        if constexpr (JOB_DEBUG) {
-            dbgln("Job::handle_content_encoding: Brotli::decompress() successful.");
-            dbgln("  Input size: {}", buf.size());
-            dbgln("  Output size: {}", uncompressed.size());
-        }
-
-        return uncompressed;
-    }
-
-    return buf;
-}
 
 Job::Job(HttpRequest&& request, Stream& output_stream)
     : Core::NetworkJob(output_stream)
@@ -118,36 +56,72 @@ void Job::shutdown(ShutdownMode mode)
 
 void Job::flush_received_buffers()
 {
-    if (!m_can_stream_response || m_buffered_size == 0)
+    if (m_decoding_stream.has_value()) {
+        auto& stream = *m_decoding_stream->stream.ptr();
+        bool exhausted_decoded_stream = false;
+        while (!exhausted_decoded_stream) {
+            auto buffer_data = MUST(ByteBuffer::create_uninitialized(32 * KiB));
+            auto buffer = buffer_data.bytes();
+            while (!buffer.is_empty()) {
+                dbgln("Decoding stream read_some({})", buffer.size());
+                auto result = stream.read_some(buffer);
+                if (result.is_error()) {
+                    if (!result.error().is_errno()) {
+                        dbgln_if(JOB_DEBUG, "Job: Failed to flush received buffers: {}", result.error());
+                        break;
+                    }
+                    if (result.error().code() == EINTR)
+                        continue;
+                    break;
+                }
+
+                auto bytes_read = result.value();
+                dbgln("Read {} bytes from decoding stream", bytes_read.size());
+                if (bytes_read.size() < buffer.size()) {
+                    buffer = buffer.slice(bytes_read.size());
+                    exhausted_decoded_stream = true;
+                    dbgln("Decoding stream exhausted, breaking");
+                    break;
+                }
+                buffer = buffer.slice(bytes_read.size());
+            }
+
+            MUST(buffer_data.try_resize(buffer_data.size() - buffer.size())); // Cannot fail, we're always shrinking the buffer
+            dbgln("In total, decoding stream read {} bytes", buffer_data.size());
+            m_buffered_size += buffer_data.size();
+            MUST(m_buffering_stream.write_buffer(move(buffer_data)));
+        }
+    }
+
+    if (m_buffered_size == 0)
         return;
-    dbgln_if(JOB_DEBUG, "Job: Flushing received buffers: have {} bytes in {} buffers for {}", m_buffered_size, m_received_buffers.size(), m_request.url());
-    for (size_t i = 0; i < m_received_buffers.size(); ++i) {
-        auto& payload = m_received_buffers[i]->pending_flush;
-        auto result = do_write(payload);
+
+    dbgln_if(JOB_DEBUG, "Job: Flushing received buffers: have {} bytes in {} buffers for {}", m_buffered_size, m_buffering_stream.buffer_count(), m_request.url());
+    while (true) {
+        dbgln("Flushing received buffers...");
+        auto result = m_buffering_stream.try_flush_into([this](auto bytes) {
+            dbgln("Flushing {} bytes into socket", bytes.size());
+            auto result = do_write(bytes);
+            dbgln("do_write({}) returned {}", bytes.size(), result);
+            if (!result.is_error())
+                dbgln("Wrote: {:32hex-dump}", bytes.slice(0, result.value()));
+            return result;
+        });
         if (result.is_error()) {
             if (!result.error().is_errno()) {
                 dbgln_if(JOB_DEBUG, "Job: Failed to flush received buffers: {}", result.error());
-                continue;
+                break;
             }
-            if (result.error().code() == EINTR) {
-                i--;
+            if (result.error().code() == EINTR)
                 continue;
-            }
             break;
         }
-        auto written = result.release_value();
-        m_buffered_size -= written;
-        if (written == payload.size()) {
-            // FIXME: Make this a take-first-friendly object?
-            (void)m_received_buffers.take_first();
-            --i;
-            continue;
-        }
-        VERIFY(written < payload.size());
-        payload = payload.slice(written, payload.size() - written);
-        break;
+        m_buffered_size -= result.value();
+        if (result.value() == 0)
+            break;
     }
-    dbgln_if(JOB_DEBUG, "Job: Flushing received buffers done: have {} bytes in {} buffers for {}", m_buffered_size, m_received_buffers.size(), m_request.url());
+
+    dbgln_if(JOB_DEBUG, "Job: Flushing received buffers done: have {} bytes in {} buffers for {}", m_buffered_size, m_buffering_stream.buffer_count(), m_request.url());
 }
 
 void Job::register_on_ready_to_read(Function<void()> callback)
@@ -359,7 +333,7 @@ void Job::on_socket_connected()
             auto value = line.substring(name.length() + 2, line.length() - name.length() - 2);
             if (name.equals_ignoring_ascii_case("Set-Cookie"sv)) {
                 dbgln_if(JOB_DEBUG, "Job: Received Set-Cookie header: '{}'", value);
-                m_set_cookie_headers.append(move(value));
+                m_set_cookie_headers.append(value);
 
                 auto can_read_without_blocking = m_socket->can_read_without_blocking();
                 if (can_read_without_blocking.is_error())
@@ -375,10 +349,17 @@ void Job::on_socket_connected()
             } else {
                 m_headers.set(name, value);
             }
+
             if (name.equals_ignoring_ascii_case("Content-Encoding"sv)) {
-                // Assume that any content-encoding means that we can't decode it as a stream :(
-                dbgln_if(JOB_DEBUG, "Content-Encoding {} detected, cannot stream output :(", value);
-                m_can_stream_response = false;
+                dbgln_if(JOB_DEBUG, "Content-Encoding {} detected", value);
+                if (value == "gzip"sv)
+                    m_decoding_stream.emplace([](MaybeOwned<Stream>&& stream) { return make<Compress::GzipDecompressor>(move(stream)); });
+                else if (value == "deflate"sv)
+                    m_decoding_stream.emplace([](MaybeOwned<Stream>&& stream) { return MUST(Compress::ZlibDecompressor::create(move(stream))); });
+                else if (value == "br"sv)
+                    m_decoding_stream.emplace([](MaybeOwned<Stream>&& stream) { return make<Compress::BrotliDecompressionStream>(move(stream)); });
+                else
+                    dbgln("Unknown Content-Encoding: {}", value);
             } else if (name.equals_ignoring_ascii_case("Content-Length"sv)) {
                 auto length = value.to_uint<u64>();
                 if (length.has_value())
@@ -513,9 +494,16 @@ void Job::on_socket_connected()
                 }
             }
 
-            m_received_buffers.append(make<ReceivedBuffer>(payload));
-            m_buffered_size += payload.size();
-            m_received_size += payload.size();
+            auto payload_size = payload.size();
+            if (m_decoding_stream.has_value()) {
+                MUST(m_decoding_stream->input_stream.write_buffer(move(payload)));
+                dbgln("Wrote {} bytes to decoding stream", payload_size);
+            } else {
+                MUST(m_buffering_stream.write_buffer(move(payload)));
+                m_buffered_size += payload_size;
+            }
+
+            m_received_size += payload_size;
             flush_received_buffers();
 
             deferred_invoke([this] { did_progress(m_content_length, m_received_size); });
@@ -535,7 +523,7 @@ void Job::on_socket_connected()
             }
 
             if (m_current_chunk_remaining_size.has_value()) {
-                auto size = m_current_chunk_remaining_size.value() - payload.size();
+                auto size = m_current_chunk_remaining_size.value() - payload_size;
 
                 dbgln_if(JOB_DEBUG, "Job: We have {} bytes left over in this chunk", size);
                 if (size == 0) {
@@ -586,33 +574,9 @@ void Job::finish_up()
 {
     VERIFY(!m_has_scheduled_finish);
     m_state = State::Finished;
-    if (!m_can_stream_response) {
-        auto maybe_flattened_buffer = ByteBuffer::create_uninitialized(m_buffered_size);
-        if (maybe_flattened_buffer.is_error())
-            return did_fail(Core::NetworkJob::Error::TransmissionFailed);
-        auto flattened_buffer = maybe_flattened_buffer.release_value();
 
-        u8* flat_ptr = flattened_buffer.data();
-        for (auto& received_buffer : m_received_buffers) {
-            memcpy(flat_ptr, received_buffer->pending_flush.data(), received_buffer->pending_flush.size());
-            flat_ptr += received_buffer->pending_flush.size();
-        }
-        m_received_buffers.clear();
-
-        // For the time being, we cannot stream stuff with content-encoding set to _anything_.
-        // FIXME: LibCompress exposes a streaming interface, so this can be resolved
-        auto content_encoding = m_headers.get("Content-Encoding");
-        if (content_encoding.has_value()) {
-            if (auto result = handle_content_encoding(flattened_buffer, content_encoding.value()); !result.is_error())
-                flattened_buffer = result.release_value();
-            else
-                return did_fail(Core::NetworkJob::Error::TransmissionFailed);
-        }
-
-        m_buffered_size = flattened_buffer.size();
-        m_received_buffers.append(make<ReceivedBuffer>(move(flattened_buffer)));
-        m_can_stream_response = true;
-    }
+    m_decoding_stream.clear();
+    m_buffering_stream.close();
 
     flush_received_buffers();
     if (m_buffered_size != 0) {

@@ -15,9 +15,8 @@
 
 namespace Compress {
 
-constexpr static size_t Adler32Size = sizeof(u32);
-
-ErrorOr<NonnullOwnPtr<ZlibDecompressor>> ZlibDecompressor::create(MaybeOwned<Stream> stream) {
+ErrorOr<NonnullOwnPtr<ZlibDecompressor>> ZlibDecompressor::create(MaybeOwned<Stream> stream)
+{
     auto header = TRY(stream->read_value<ZlibHeader>());
 
     if (header.compression_method != ZlibCompressionMethod::Deflate || header.compression_info > 7)
@@ -61,7 +60,8 @@ bool ZlibDecompressor::is_open() const
     return m_stream->is_open();
 }
 
-void ZlibDecompressor::close() {
+void ZlibDecompressor::close()
+{
 }
 
 ErrorOr<NonnullOwnPtr<ZlibCompressor>> ZlibCompressor::construct(MaybeOwned<Stream> stream, ZlibCompressionLevel compression_level)

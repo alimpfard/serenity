@@ -7,7 +7,9 @@
 #pragma once
 
 #include <AK/HashMap.h>
+#include <AK/MaybeOwned.h>
 #include <AK/Optional.h>
+#include <AK/Queue.h>
 #include <LibCore/NetworkJob.h>
 #include <LibCore/Socket.h>
 #include <LibHTTP/HttpRequest.h>
@@ -70,14 +72,99 @@ protected:
         ReadonlyBytes pending_flush;
     };
 
-    Vector<NonnullOwnPtr<ReceivedBuffer>> m_received_buffers;
+    class BufferingStream final : public Stream {
+    public:
+        ErrorOr<Bytes> read_some(Bytes bytes) override
+        {
+            size_t total_read = 0;
+            TRY(try_flush_into([&](ReadonlyBytes read_bytes) -> ErrorOr<size_t> {
+                auto read_count = min(read_bytes.size(), bytes.size() - total_read);
+                read_bytes.slice(0, read_count).copy_to(bytes.slice(total_read, read_count));
+                total_read += read_count;
+                return read_count;
+            }));
+            return bytes.slice(0, total_read);
+        }
+
+        ErrorOr<size_t> write_some(ReadonlyBytes) override
+        {
+            // Use .write_buffer(ByteBuffer&&) instead.
+            return AK::Error::from_errno(ENOTSUP);
+        }
+
+        ErrorOr<void> write_buffer(ByteBuffer&& buffer)
+        {
+            if (buffer.is_empty())
+                return {};
+
+            m_received_buffers.enqueue(make<ReceivedBuffer>(move(buffer)));
+            return {};
+        }
+
+        template<CallableAs<ErrorOr<size_t>, ReadonlyBytes> F>
+        ErrorOr<size_t> try_flush_into(F f)
+        {
+            if (m_received_buffers.is_empty())
+                return 0;
+
+            size_t total_flushed = 0;
+            while (!m_received_buffers.is_empty()) {
+                auto& buffer = m_received_buffers.head();
+                auto result = f(buffer->pending_flush);
+                if (result.is_error()) {
+                    if (!result.error().is_errno())
+                        return result.release_error();
+                    if (result.error().code() == EINTR)
+                        continue;
+                    if (result.error().code() == EAGAIN)
+                        break;
+                    return result.release_error();
+                }
+
+                auto read_count = result.release_value();
+                if (read_count == 0)
+                    return total_flushed;
+
+                total_flushed += read_count;
+
+                buffer->pending_flush = buffer->pending_flush.slice(read_count);
+                if (buffer->pending_flush.is_empty())
+                    (void)m_received_buffers.dequeue();
+            };
+
+            return total_flushed;
+        }
+
+        bool is_eof() const override { return m_received_buffers.is_empty(); }
+
+        bool is_open() const override { return true; }
+
+        void close() override { m_received_buffers.clear(); }
+
+        size_t buffer_count() const { return m_received_buffers.size(); }
+
+    private:
+        Queue<NonnullOwnPtr<ReceivedBuffer>> m_received_buffers;
+    };
+
+    struct DecodingStream {
+        template<typename MakeDecompressor>
+        DecodingStream(MakeDecompressor f)
+            : stream(f(MaybeOwned<Stream>(input_stream)))
+        {
+        }
+
+        MaybeOwned<Stream> stream;
+        BufferingStream input_stream;
+    };
 
     size_t m_buffered_size { 0 };
     size_t m_received_size { 0 };
     Optional<u64> m_content_length;
     Optional<ssize_t> m_current_chunk_remaining_size;
     Optional<size_t> m_current_chunk_total_size;
-    bool m_can_stream_response { true };
+    Optional<DecodingStream> m_decoding_stream;
+    BufferingStream m_buffering_stream;
     bool m_should_read_chunk_ending_line { false };
     bool m_has_scheduled_finish { false };
 };
