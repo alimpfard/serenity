@@ -56,11 +56,11 @@ void Job::shutdown(ShutdownMode mode)
 
 void Job::flush_received_buffers()
 {
-    if (m_decoding_stream.has_value()) {
+    if (m_decoding_stream.has_value() && (m_state == State::Finished || m_decoding_stream->input_stream.buffered_size() > 16)) {
         auto& stream = *m_decoding_stream->stream.ptr();
         bool exhausted_decoded_stream = false;
         while (!exhausted_decoded_stream) {
-            auto buffer_data = MUST(ByteBuffer::create_uninitialized(32 * KiB));
+            auto buffer_data = MUST(ByteBuffer::create_uninitialized(4 * KiB));
             auto buffer = buffer_data.bytes();
             while (!buffer.is_empty()) {
                 dbgln("Decoding stream read_some({})", buffer.size());
@@ -72,12 +72,14 @@ void Job::flush_received_buffers()
                     }
                     if (result.error().code() == EINTR)
                         continue;
+
+                    exhausted_decoded_stream = true;
                     break;
                 }
 
                 auto bytes_read = result.value();
                 dbgln("Read {} bytes from decoding stream", bytes_read.size());
-                if (bytes_read.size() < buffer.size()) {
+                if (bytes_read.is_empty() || bytes_read.size() < buffer.size()) {
                     buffer = buffer.slice(bytes_read.size());
                     exhausted_decoded_stream = true;
                     dbgln("Decoding stream exhausted, breaking");
@@ -87,24 +89,21 @@ void Job::flush_received_buffers()
             }
 
             MUST(buffer_data.try_resize(buffer_data.size() - buffer.size())); // Cannot fail, we're always shrinking the buffer
-            dbgln("In total, decoding stream read {} bytes", buffer_data.size());
-            m_buffered_size += buffer_data.size();
+            dbgln("In total, decoding stream read {} bytes ({} bytes remain in input buffer)", buffer_data.size(), m_decoding_stream->input_stream.buffered_size());
             MUST(m_buffering_stream.write_buffer(move(buffer_data)));
         }
     }
 
-    if (m_buffered_size == 0)
+    if (m_buffering_stream.buffered_size() == 0)
         return;
 
-    dbgln_if(JOB_DEBUG, "Job: Flushing received buffers: have {} bytes in {} buffers for {}", m_buffered_size, m_buffering_stream.buffer_count(), m_request.url());
+    dbgln_if(JOB_DEBUG, "Job: Flushing received buffers: have {} bytes in {} buffers for {}", m_buffering_stream.buffered_size(), m_buffering_stream.buffer_count(), m_request.url());
     while (true) {
         dbgln("Flushing received buffers...");
         auto result = m_buffering_stream.try_flush_into([this](auto bytes) {
             dbgln("Flushing {} bytes into socket", bytes.size());
             auto result = do_write(bytes);
             dbgln("do_write({}) returned {}", bytes.size(), result);
-            if (!result.is_error())
-                dbgln("Wrote: {:32hex-dump}", bytes.slice(0, result.value()));
             return result;
         });
         if (result.is_error()) {
@@ -116,12 +115,11 @@ void Job::flush_received_buffers()
                 continue;
             break;
         }
-        m_buffered_size -= result.value();
         if (result.value() == 0)
             break;
     }
 
-    dbgln_if(JOB_DEBUG, "Job: Flushing received buffers done: have {} bytes in {} buffers for {}", m_buffered_size, m_buffering_stream.buffer_count(), m_request.url());
+    dbgln_if(JOB_DEBUG, "Job: Flushing received buffers done: have {} bytes in {} buffers for {}", m_buffering_stream.buffered_size(), m_buffering_stream.buffer_count(), m_request.url());
 }
 
 void Job::register_on_ready_to_read(Function<void()> callback)
@@ -497,10 +495,10 @@ void Job::on_socket_connected()
             auto payload_size = payload.size();
             if (m_decoding_stream.has_value()) {
                 MUST(m_decoding_stream->input_stream.write_buffer(move(payload)));
-                dbgln("Wrote {} bytes to decoding stream", payload_size);
+                dbgln("Wrote {} bytes to decoding stream, have {} buffered bytes", payload_size, m_decoding_stream->input_stream.buffered_size());
             } else {
                 MUST(m_buffering_stream.write_buffer(move(payload)));
-                m_buffered_size += payload_size;
+                dbgln("Wrote {} bytes to output stream, have {} buffered bytes", payload_size, m_buffering_stream.buffered_size());
             }
 
             m_received_size += payload_size;
@@ -566,7 +564,7 @@ void Job::timer_event(Core::TimerEvent& event)
 {
     event.accept();
     finish_up();
-    if (m_buffered_size == 0)
+    if (m_buffering_stream.buffered_size() == 0)
         stop_timer();
 }
 
@@ -575,22 +573,22 @@ void Job::finish_up()
     VERIFY(!m_has_scheduled_finish);
     m_state = State::Finished;
 
-    m_decoding_stream.clear();
-    m_buffering_stream.close();
-
     flush_received_buffers();
-    if (m_buffered_size != 0) {
+    if (m_buffering_stream.buffered_size() != 0) {
         // We have to wait for the client to consume all the downloaded data
         // before we can actually call `did_finish`. in a normal flow, this should
         // never be hit since the client is reading as we are writing, unless there
         // are too many concurrent downloads going on.
-        dbgln_if(JOB_DEBUG, "Flush finished with {} bytes remaining, will try again later", m_buffered_size);
+        dbgln_if(JOB_DEBUG, "Flush finished with {} bytes remaining, will try again later", m_buffering_stream.buffered_size());
         if (!has_timer())
-            start_timer(50);
+            start_timer(300);
         return;
     }
 
     m_has_scheduled_finish = true;
+    m_decoding_stream.clear();
+    m_buffering_stream.close();
+
     auto response = HttpResponse::create(m_code, move(m_headers), m_received_size);
     deferred_invoke([this, response = move(response)] {
         // If the server responded with "Connection: close", close the connection

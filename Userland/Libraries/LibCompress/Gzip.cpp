@@ -101,7 +101,7 @@ ErrorOr<Bytes> GzipDecompressor::read_some(Bytes bytes)
             auto current_partial_header_data = TRY(m_input_stream->read_some(current_partial_header_slice));
             m_partial_header_offset += current_partial_header_data.size();
 
-            if (is_eof())
+            if (current_partial_header_data.is_empty())
                 break;
 
             if (m_partial_header_offset < sizeof(BlockHeader)) {

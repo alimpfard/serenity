@@ -83,6 +83,9 @@ protected:
                 total_read += read_count;
                 return read_count;
             }));
+            if (total_read == 0)
+                return AK::Error::from_errno(EAGAIN);
+
             return bytes.slice(0, total_read);
         }
 
@@ -97,6 +100,7 @@ protected:
             if (buffer.is_empty())
                 return {};
 
+            m_buffered_size += buffer.size();
             m_received_buffers.enqueue(make<ReceivedBuffer>(move(buffer)));
             return {};
         }
@@ -109,8 +113,8 @@ protected:
 
             size_t total_flushed = 0;
             while (!m_received_buffers.is_empty()) {
-                auto& buffer = m_received_buffers.head();
-                auto result = f(buffer->pending_flush);
+                auto& buffer = *m_received_buffers.head();
+                auto result = f(buffer.pending_flush);
                 if (result.is_error()) {
                     if (!result.error().is_errno())
                         return result.release_error();
@@ -126,25 +130,32 @@ protected:
                     return total_flushed;
 
                 total_flushed += read_count;
+                m_buffered_size -= read_count;
 
-                buffer->pending_flush = buffer->pending_flush.slice(read_count);
-                if (buffer->pending_flush.is_empty())
+                buffer.pending_flush = buffer.pending_flush.slice(read_count);
+                if (buffer.pending_flush.is_empty())
                     (void)m_received_buffers.dequeue();
             };
 
             return total_flushed;
         }
 
-        bool is_eof() const override { return m_received_buffers.is_empty(); }
+        bool is_eof() const override { return m_buffered_size == 0; }
 
         bool is_open() const override { return true; }
 
-        void close() override { m_received_buffers.clear(); }
+        void close() override
+        {
+            m_received_buffers.clear();
+            m_buffered_size = 0;
+        }
 
         size_t buffer_count() const { return m_received_buffers.size(); }
+        size_t buffered_size() const { return m_buffered_size; }
 
     private:
         Queue<NonnullOwnPtr<ReceivedBuffer>> m_received_buffers;
+        size_t m_buffered_size { 0 };
     };
 
     struct DecodingStream {
@@ -158,7 +169,6 @@ protected:
         BufferingStream input_stream;
     };
 
-    size_t m_buffered_size { 0 };
     size_t m_received_size { 0 };
     Optional<u64> m_content_length;
     Optional<ssize_t> m_current_chunk_remaining_size;
