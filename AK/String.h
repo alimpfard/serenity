@@ -252,6 +252,20 @@ private:
         u8 storage[MAX_SHORT_STRING_BYTE_COUNT] = { 0 };
     };
 
+public:
+    ShortString short_string_data(Badge<Error>) const
+    {
+        VERIFY(is_short_string());
+        return m_short_string;
+    }
+
+    Detail::StringData const& string_data(Badge<Error>) const
+    {
+        VERIFY(!is_short_string());
+        return *m_data;
+    }
+
+private:
     explicit String(NonnullRefPtr<Detail::StringData const>);
 
     explicit constexpr String(ShortString short_string)

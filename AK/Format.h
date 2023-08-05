@@ -699,19 +699,7 @@ struct Formatter<FormatString> : Formatter<StringView> {
 
 template<>
 struct Formatter<Error> : Formatter<FormatString> {
-    ErrorOr<void> format(FormatBuilder& builder, Error const& error)
-    {
-#if defined(AK_OS_SERENITY) && defined(KERNEL)
-        return Formatter<FormatString>::format(builder, "Error(errno={})"sv, error.code());
-#else
-        if (error.is_syscall())
-            return Formatter<FormatString>::format(builder, "{}: {} (errno={})"sv, error.string_literal(), strerror(error.code()), error.code());
-        if (error.is_errno())
-            return Formatter<FormatString>::format(builder, "{} (errno={})"sv, strerror(error.code()), error.code());
-
-        return Formatter<FormatString>::format(builder, "{}"sv, error.string_literal());
-#endif
-    }
+    ErrorOr<void> format(FormatBuilder& builder, Error const& error);
 };
 
 template<typename T, typename ErrorType>

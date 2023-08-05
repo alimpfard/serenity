@@ -8,6 +8,7 @@
 #include <AK/Format.h>
 #include <AK/GenericLexer.h>
 #include <AK/IntegralMath.h>
+#include <AK/String.h>
 #include <AK/StringBuilder.h>
 #include <AK/kstdio.h>
 
@@ -695,6 +696,20 @@ void StandardFormatter::parse(TypeErasedFormatParams& params, FormatParser& pars
         dbgln("{} did not consume '{}'", __PRETTY_FUNCTION__, parser.remaining());
 
     VERIFY(parser.is_eof());
+}
+
+ErrorOr<void> Formatter<Error>::format(AK::FormatBuilder& builder, const AK::Error& error)
+{
+#if defined(AK_OS_SERENITY) && defined(KERNEL)
+    return Formatter<FormatString>::format(builder, "Error(errno={})"sv, error.code());
+#else
+    if (error.is_syscall())
+        return Formatter<FormatString>::format(builder, "{}: {} (errno={})"sv, error.string_literal(), strerror(error.code()), error.code());
+    if (error.is_errno())
+        return Formatter<FormatString>::format(builder, "{} (errno={})"sv, strerror(error.code()), error.code());
+
+    return Formatter<FormatString>::format(builder, "{}"sv, TRY(error.format_impl()));
+#endif
 }
 
 ErrorOr<void> Formatter<StringView>::format(FormatBuilder& builder, StringView value)

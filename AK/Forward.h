@@ -15,6 +15,7 @@ namespace AK {
 namespace Detail {
 template<size_t inline_capacity>
 class ByteBuffer;
+class StringData;
 }
 
 class BigEndianInputBitStream;

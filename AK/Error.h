@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <AK/CheckedFormatString.h>
 #include <AK/StringView.h>
 #include <AK/Try.h>
 #include <AK/Variant.h>
@@ -18,16 +19,171 @@
 #endif
 
 namespace AK {
+namespace Detail {
+template<typename T>
+constexpr bool CanBePlacedInErrorFormattedStringBuffer = IsOneOf<T, u8, u16, u32, u64, i8, i16, i32, i64, StringView, AK::String>;
+
+template<typename T>
+consteval size_t formatted_size_of()
+{
+    if constexpr (IsSame<T, AK::String>)
+        return sizeof(FlatPtr);
+    return sizeof(T);
+}
+
+template<typename... Ts>
+consteval size_t error_formatted_string_buffer_encoded_size()
+{
+    return ((formatted_size_of<Ts>() + 1) + ...);
+}
+}
+
+/// Format Buffer Encoding:
+///   Type ::= u8 { Nothing{s=0}, U<n>{s=n/8}, I<n>{s=n/8}, StringView{s=sizeof(StringView)}, StringImpl{s=sizeof(FlatPtr)} } where n ::= { 8, 16, 32, 64 }
+///   FormatBufferEntry ::= Type [u8 * Type.s]
+///   FormatBuffer ::= FormatBufferEntry Type::Nothing
+template<typename FormatBuffer, typename... Ts>
+constexpr bool FitsInErrorFormattedStringBuffer = requires {
+    requires(Detail::CanBePlacedInErrorFormattedStringBuffer<Ts> && ...);
+    requires Detail::error_formatted_string_buffer_encoded_size<Ts...>() <= sizeof(FormatBuffer) - sizeof(u8);
+};
 
 class [[nodiscard]] Error {
+    struct ErrnoCode {
+        int code;
+
+        bool operator==(ErrnoCode const&) const = default;
+    };
+
+#ifndef KERNEL
+    struct Syscall {
+        int code;
+        StringView syscall_name;
+
+        bool operator==(Syscall const&) const = default;
+    };
+
+    struct FormattedString {
+        enum class Type : u8 {
+            Nothing,
+            StringView,
+            StringImpl,
+            ShortStringImpl,
+            U8,
+            U16,
+            U32,
+            U64,
+            I8,
+            I16,
+            I32,
+            I64,
+        };
+
+        bool operator==(FormattedString const&) const { return false; }
+
+        StringView format_string;
+        Array<u8, 64 - sizeof(StringView)> buffer; // See comment on `AK::FitsInErrorFormattedStringBuffer' for encoding.
+    };
+
+    struct String {
+        u8 length;
+        char buffer[64 - 1];
+
+        bool operator==(String const& x) const { return StringView(buffer, length) == StringView(x.buffer, x.length); }
+    };
+
+    template<typename... Ts>
+    Error(CheckedFormatString<Ts...> format_string, Ts... values)
+        : m_data(FormattedString { format_string.view(), pack(values...) })
+    {
+    }
+
+    enum class DynamicStringTag { Tag };
+    Error(DynamicStringTag, StringView v)
+        : m_data(String { .length = 0, .buffer = {} })
+    {
+        auto& string = m_data.get<String>();
+        VERIFY(v.length() <= array_size(string.buffer));
+        string.length = v.length();
+        auto ok = v.copy_characters_to_buffer(&string.buffer[0], array_size(string.buffer));
+        VERIFY(ok);
+    }
+
+    template<typename... Ts>
+    static decltype(auto) pack(Ts&&... values)
+    {
+        decltype(FormattedString::buffer) buffer {};
+        size_t offset = 0;
+        ([&]<typename T>(T const& value) {
+            FormattedString::Type tag;
+            if constexpr (IsSame<T, i8>)
+                tag = FormattedString::Type::I8;
+            else if constexpr (IsSame<T, u8>)
+                tag = FormattedString::Type::U8;
+            else if constexpr (IsSame<T, i16>)
+                tag = FormattedString::Type::I16;
+            else if constexpr (IsSame<T, u16>)
+                tag = FormattedString::Type::U16;
+            else if constexpr (IsSame<T, i32>)
+                tag = FormattedString::Type::I32;
+            else if constexpr (IsSame<T, u32>)
+                tag = FormattedString::Type::U32;
+            else if constexpr (IsSame<T, i64>)
+                tag = FormattedString::Type::I64;
+            else if constexpr (IsSame<T, u64>)
+                tag = FormattedString::Type::U64;
+            else if constexpr (IsSame<T, StringView>)
+                tag = FormattedString::Type::StringView;
+            else if constexpr (IsSame<T, AK::String>)
+                tag = FormattedString::Type::StringImpl;
+            else
+                static_assert(DependentFalse<T>, "Error::formatted() can only be passed (static) StringViews, AK::String, and integers");
+
+            size_t size = tag == FormattedString::Type::StringImpl ? sizeof(FlatPtr) : sizeof(T);
+            if (offset + size + 2 >= buffer.size())
+                VERIFY_NOT_REACHED();
+
+            if (tag == FormattedString::Type::StringImpl) {
+                offset += pack_string(buffer.data(), offset, value);
+            } else {
+                buffer[offset] = to_underlying(tag);
+                memcpy(&buffer[offset + 1], bit_cast<u8 const*>(&value), size);
+                offset += size + 1;
+            }
+        }(values),
+            ...);
+
+        buffer[offset] = to_underlying(FormattedString::Type::Nothing);
+
+        return buffer;
+    }
+
+    static size_t pack_string(u8* buffer, size_t offset, AK::String const& string);
+#endif
+
 public:
-    ALWAYS_INLINE Error(Error&&) = default;
-    ALWAYS_INLINE Error& operator=(Error&&) = default;
+    ALWAYS_INLINE Error(Error&& other)
+        : m_data(move(other.m_data))
+    {
+        other.m_data = ErrnoCode { 0 };
+    }
+
+    ALWAYS_INLINE Error& operator=(Error&& other)
+    {
+        m_data = move(other.m_data);
+        other.m_data = ErrnoCode { 0 };
+        return *this;
+    }
 
     static Error from_errno(int code)
     {
         VERIFY(code != 0);
         return Error(code);
+    }
+
+    static Error copy(Error const& error)
+    {
+        return Error(error);
     }
 
     // NOTE: For calling this method from within kernel code, we will simply print
@@ -52,14 +208,14 @@ public:
         VERIFY_NOT_REACHED();
     }
 
-#endif
-
-    static Error copy(Error const& error)
+    [[nodiscard]] static Error from_kinda_short_string(StringView string) { return Error(DynamicStringTag::Tag, string); }
+    template<typename... Ts>
+    requires(FitsInErrorFormattedStringBuffer<decltype(FormattedString::buffer), Ts...>)
+    [[nodiscard]] static Error formatted(CheckedFormatString<Ts...> format_string, Ts... args)
     {
-        return Error(error);
+        return Error(format_string, args...);
     }
 
-#ifndef KERNEL
     // NOTE: Prefer `from_string_literal` when directly typing out an error message:
     //
     //     return Error::from_string_literal("Class: Some failure");
@@ -78,50 +234,68 @@ public:
     {
         return from_string_view(string);
     }
+
+    bool is_syscall() const { return m_data.has<Syscall>(); }
+
+    StringView string_literal() const
+    {
+        return m_data.visit(
+            [](Syscall const& x) {
+                return x.syscall_name;
+            },
+            [](FormattedString const& x) {
+                if (static_cast<FormattedString::Type>(x.buffer[0]) == FormattedString::Type::Nothing)
+                    return x.format_string;
+                return StringView {};
+            },
+            [](String const& x) {
+                return StringView { x.buffer, x.length };
+            },
+            [](auto&) { return StringView {}; });
+    }
 #endif
+
+    int code() const
+    {
+        return m_data.visit(
+            [](ErrnoCode const& x) { return x.code; },
+#ifndef KERNEL
+            [](Syscall const& x) { return x.code; },
+#endif
+            [](auto&) -> int { return 0; });
+    }
+
+    bool is_errno() const { return code() != 0; }
 
     bool operator==(Error const& other) const
     {
-#ifdef KERNEL
-        return m_code == other.m_code;
-#else
-        return m_code == other.m_code && m_string_literal == other.m_string_literal && m_syscall == other.m_syscall;
-#endif
+        return m_data == other.m_data;
     }
 
-    int code() const { return m_code; }
-    bool is_errno() const
-    {
-        return m_code != 0;
-    }
 #ifndef KERNEL
-    bool is_syscall() const
-    {
-        return m_syscall;
-    }
-    StringView string_literal() const
-    {
-        return m_string_literal;
-    }
+    ~Error();
+#endif
+
+#ifndef KERNEL
+    template<typename R = ErrorOr<AK::String>>
+    R format_impl() const;
 #endif
 
 protected:
     Error(int code)
-        : m_code(code)
+        : m_data(ErrnoCode(code))
     {
     }
 
 private:
 #ifndef KERNEL
     Error(StringView string_literal)
-        : m_string_literal(string_literal)
+        : m_data(FormattedString { string_literal, { 0 } })
     {
     }
 
     Error(StringView syscall_name, int rc)
-        : m_string_literal(syscall_name)
-        , m_code(-rc)
-        , m_syscall(true)
+        : m_data(Syscall { -rc, syscall_name })
     {
     }
 #endif
@@ -129,14 +303,10 @@ private:
     Error(Error const&) = default;
     Error& operator=(Error const&) = default;
 
-#ifndef KERNEL
-    StringView m_string_literal;
-#endif
-
-    int m_code { 0 };
-
-#ifndef KERNEL
-    bool m_syscall { false };
+#ifdef KERNEL
+    Variant<ErrnoCode> m_data;
+#else
+    Variant<Syscall, FormattedString, String, ErrnoCode> m_data;
 #endif
 };
 
