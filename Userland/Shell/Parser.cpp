@@ -1903,6 +1903,9 @@ RefPtr<AST::Node> Parser::parse_comment()
     if (peek() != '#')
         return nullptr;
 
+    if (m_offset != 0 && !is_ascii_space(m_input[m_offset - 1]))
+        return nullptr;
+
     consume();
     auto text = consume_while(is_not('\n'));
     return create<AST::Comment>(TRY_OR_THROW_PARSE_ERROR(String::from_utf8(text))); // Comment
@@ -1913,7 +1916,7 @@ RefPtr<AST::Node> Parser::parse_bareword()
     auto rule_start = push_start();
     StringBuilder builder;
     auto is_acceptable_bareword_character = [&](char c) {
-        return strchr("\\\"'*$&#|(){} ?;<>\n", c) == nullptr
+        return strchr("\\\"'*$&|(){} ?;<>\n", c) == nullptr
             && !m_extra_chars_not_allowed_in_barewords.contains_slow(c);
     };
     while (!at_end()) {
