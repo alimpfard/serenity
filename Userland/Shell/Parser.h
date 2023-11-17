@@ -53,7 +53,7 @@ private:
     };
 
     struct HeredocInitiationRecord {
-        String end;
+        DeprecatedString end;
         RefPtr<AST::Heredoc> node;
         bool interpolate { false };
         bool deindent { false };

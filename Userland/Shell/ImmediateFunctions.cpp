@@ -68,7 +68,7 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_length_impl(AST::ImmediateExpression
     }
 
     auto value_with_number = [&](auto number) -> ErrorOr<NonnullRefPtr<AST::Node>> {
-        return AST::make_ref_counted<AST::BarewordLiteral>(invoking_node.position(), TRY(String::number(number)));
+        return AST::make_ref_counted<AST::BarewordLiteral>(invoking_node.position(), DeprecatedString::number(number));
     };
 
     auto do_across = [&](StringView mode_name, auto& values) -> ErrorOr<RefPtr<AST::Node>> {
@@ -83,7 +83,7 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_length_impl(AST::ImmediateExpression
                 expr_node->position(),
                 AST::NameWithPosition { "length"_string, invoking_node.function_position() },
                 Vector<NonnullRefPtr<AST::Node>> { Vector<NonnullRefPtr<AST::Node>> {
-                    static_cast<NonnullRefPtr<AST::Node>>(AST::make_ref_counted<AST::BarewordLiteral>(expr_node->position(), TRY(String::from_utf8(mode_name)))),
+                    static_cast<NonnullRefPtr<AST::Node>>(AST::make_ref_counted<AST::BarewordLiteral>(expr_node->position(), mode_name)),
                     AST::make_ref_counted<AST::SyntheticNode>(expr_node->position(), NonnullRefPtr<AST::Value>(entry)),
                 } },
                 expr_node->position()));
@@ -174,7 +174,7 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_length_impl(AST::ImmediateExpression
                     goto raise_no_list_allowed;
 
                 // This is the normal case, the expression is a normal non-list expression.
-                return value_with_number(list.first().bytes_as_string_view().length());
+                return value_with_number(list.first().length());
             }
 
             // This can be hit by asking for the length of a command list (e.g. `(>/dev/null)`)
@@ -226,13 +226,13 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_regex_replace(AST::ImmediateExpressi
         return nullptr;
     }
 
-    Regex<PosixExtendedParser> re { TRY(pattern->resolve_as_list(this)).first().to_deprecated_string() };
+    Regex<PosixExtendedParser> re { TRY(pattern->resolve_as_list(this)).first() };
     auto result = re.replace(
         TRY(value->resolve_as_list(this))[0],
         TRY(replacement->resolve_as_list(this))[0],
         PosixFlags::Global | PosixFlags::Multiline | PosixFlags::Unicode);
 
-    return AST::make_ref_counted<AST::StringLiteral>(invoking_node.position(), TRY(String::from_deprecated_string(result)), AST::StringLiteral::EnclosureType::None);
+    return AST::make_ref_counted<AST::StringLiteral>(invoking_node.position(), result, AST::StringLiteral::EnclosureType::None);
 }
 
 ErrorOr<RefPtr<AST::Node>> Shell::immediate_remove_suffix(AST::ImmediateExpression& invoking_node, Vector<NonnullRefPtr<AST::Node>> const& arguments)
@@ -256,10 +256,10 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_remove_suffix(AST::ImmediateExpressi
     Vector<NonnullRefPtr<AST::Node>> nodes;
 
     for (auto& value_str : values) {
-        String removed = TRY(String::from_utf8(value_str));
+        DeprecatedString removed = value_str;
 
-        if (value_str.bytes_as_string_view().ends_with(suffix_str))
-            removed = TRY(removed.substring_from_byte_offset(0, value_str.bytes_as_string_view().length() - suffix_str.bytes_as_string_view().length()));
+        if (value_str.view().ends_with(suffix_str))
+            removed = removed.substring(0, value_str.length() - suffix_str.length());
 
         nodes.append(AST::make_ref_counted<AST::StringLiteral>(invoking_node.position(), move(removed), AST::StringLiteral::EnclosureType::None));
     }
@@ -288,10 +288,10 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_remove_prefix(AST::ImmediateExpressi
     Vector<NonnullRefPtr<AST::Node>> nodes;
 
     for (auto& value_str : values) {
-        String removed = TRY(String::from_utf8(value_str));
+        DeprecatedString removed = value_str;
 
-        if (value_str.bytes_as_string_view().starts_with(prefix_str))
-            removed = TRY(removed.substring_from_byte_offset(prefix_str.bytes_as_string_view().length()));
+        if (value_str.starts_with(prefix_str))
+            removed = removed.substring(prefix_str.length());
         nodes.append(AST::make_ref_counted<AST::StringLiteral>(invoking_node.position(), move(removed), AST::StringLiteral::EnclosureType::None));
     }
 
@@ -345,19 +345,19 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_split(AST::ImmediateExpression& invo
             return AST::make_ref_counted<AST::ListConcatenate>(invoking_node.position(), Vector<NonnullRefPtr<AST::Node>> {});
 
         auto& value = list.first();
-        Vector<String> split_strings;
+        Vector<DeprecatedString> split_strings;
         if (delimiter_str.is_empty()) {
             StringBuilder builder;
             for (auto code_point : Utf8View { value }) {
                 builder.append_code_point(code_point);
-                split_strings.append(TRY(builder.to_string()));
+                split_strings.append(builder.to_deprecated_string());
                 builder.clear();
             }
         } else {
             auto split = StringView { value }.split_view(delimiter_str, options.inline_exec_keep_empty_segments ? SplitBehavior::KeepEmpty : SplitBehavior::Nothing);
             split_strings.ensure_capacity(split.size());
             for (auto& entry : split)
-                split_strings.append(TRY(String::from_utf8(entry)));
+                split_strings.append(entry);
         }
         return AST::make_ref_counted<AST::SyntheticNode>(invoking_node.position(), AST::make_ref_counted<AST::ListValue>(move(split_strings)));
     }
@@ -411,14 +411,14 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_filter_glob(AST::ImmediateExpression
         if (value.size() == 0)
             return IterationDecision::Continue;
         if (value.size() == 1) {
-            if (!value.first().bytes_as_string_view().matches(glob))
+            if (!value.first().view().matches(glob))
                 return IterationDecision::Continue;
             result.append(AST::make_ref_counted<AST::StringLiteral>(arguments[1]->position(), value.first(), AST::StringLiteral::EnclosureType::None));
             return IterationDecision::Continue;
         }
 
         for (auto& entry : value) {
-            if (entry.bytes_as_string_view().matches(glob)) {
+            if (entry.view().matches(glob)) {
                 Vector<NonnullRefPtr<AST::Node>> nodes;
                 for (auto& string : value)
                     nodes.append(AST::make_ref_counted<AST::StringLiteral>(arguments[1]->position(), string, AST::StringLiteral::EnclosureType::None));
@@ -455,7 +455,7 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_join(AST::ImmediateExpression& invok
     StringBuilder builder;
     builder.join(delimiter_str, TRY(value->resolve_as_list(*this)));
 
-    return AST::make_ref_counted<AST::StringLiteral>(invoking_node.position(), TRY(builder.to_string()), AST::StringLiteral::EnclosureType::None);
+    return AST::make_ref_counted<AST::StringLiteral>(invoking_node.position(), builder.to_deprecated_string(), AST::StringLiteral::EnclosureType::None);
 }
 
 ErrorOr<RefPtr<AST::Node>> Shell::immediate_value_or_default(AST::ImmediateExpression& invoking_node, Vector<NonnullRefPtr<AST::Node>> const& arguments)
@@ -465,7 +465,7 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_value_or_default(AST::ImmediateExpre
         return nullptr;
     }
 
-    auto name = TRY(TRY(const_cast<AST::Node&>(*arguments.first()).run(*this))->resolve_as_string(*this));
+    auto name = TRY(String::from_deprecated_string(TRY(TRY(const_cast<AST::Node&>(*arguments.first()).run(*this))->resolve_as_string(*this))));
     if (!TRY(local_variable_or(name, ""sv)).is_empty())
         return make_ref_counted<AST::SimpleVariable>(invoking_node.position(), name);
 
@@ -481,10 +481,10 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_assign_default(AST::ImmediateExpress
 
     auto name = TRY(TRY(const_cast<AST::Node&>(*arguments.first()).run(*this))->resolve_as_string(*this));
     if (!TRY(local_variable_or(name, ""sv)).is_empty())
-        return make_ref_counted<AST::SimpleVariable>(invoking_node.position(), name);
+        return make_ref_counted<AST::SimpleVariable>(invoking_node.position(), TRY(String::from_deprecated_string(name)));
 
     auto value = TRY(TRY(const_cast<AST::Node&>(*arguments.last()).run(*this))->resolve_without_cast(*this));
-    set_local_variable(name.to_deprecated_string(), value);
+    set_local_variable(name, value);
 
     return make_ref_counted<AST::SyntheticNode>(invoking_node.position(), value);
 }
@@ -498,13 +498,13 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_error_if_empty(AST::ImmediateExpress
 
     auto name = TRY(TRY(const_cast<AST::Node&>(*arguments.first()).run(*this))->resolve_as_string(*this));
     if (!TRY(local_variable_or(name, ""sv)).is_empty())
-        return make_ref_counted<AST::SimpleVariable>(invoking_node.position(), name);
+        return make_ref_counted<AST::SimpleVariable>(invoking_node.position(), TRY(String::from_deprecated_string(name)));
 
     auto error_value = TRY(TRY(const_cast<AST::Node&>(*arguments.last()).run(*this))->resolve_as_string(*this));
     if (error_value.is_empty())
-        error_value = TRY(String::formatted("Expected {} to be non-empty", name));
+        error_value = DeprecatedString::formatted("Expected {} to be non-empty", name);
 
-    raise_error(ShellError::EvaluatedSyntaxError, error_value.bytes_as_string_view(), invoking_node.position());
+    raise_error(ShellError::EvaluatedSyntaxError, error_value, invoking_node.position());
     return nullptr;
 }
 
@@ -518,9 +518,9 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_null_or_alternative(AST::ImmediateEx
     auto name = TRY(TRY(const_cast<AST::Node&>(*arguments.first()).run(*this))->resolve_as_string(*this));
     auto frame = find_frame_containing_local_variable(name);
     if (!frame)
-        return make_ref_counted<AST::StringLiteral>(invoking_node.position(), ""_string, AST::StringLiteral::EnclosureType::None);
+        return make_ref_counted<AST::StringLiteral>(invoking_node.position(), "", AST::StringLiteral::EnclosureType::None);
 
-    auto value = frame->local_variables.get(name.bytes_as_string_view()).value();
+    auto value = frame->local_variables.get(name.view()).value();
     if ((value->is_string() && TRY(value->resolve_as_string(*this)).is_empty()) || (value->is_list() && TRY(value->resolve_as_list(*this)).is_empty()))
         return make_ref_counted<AST::SyntheticNode>(invoking_node.position(), *value);
 
@@ -538,7 +538,7 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_defined_value_or_default(AST::Immedi
     if (!find_frame_containing_local_variable(name))
         return arguments.last();
 
-    return make_ref_counted<AST::SimpleVariable>(invoking_node.position(), name);
+    return make_ref_counted<AST::SimpleVariable>(invoking_node.position(), TRY(String::from_deprecated_string(name)));
 }
 
 ErrorOr<RefPtr<AST::Node>> Shell::immediate_assign_defined_default(AST::ImmediateExpression& invoking_node, Vector<NonnullRefPtr<AST::Node>> const& arguments)
@@ -550,10 +550,10 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_assign_defined_default(AST::Immediat
 
     auto name = TRY(TRY(const_cast<AST::Node&>(*arguments.first()).run(*this))->resolve_as_string(*this));
     if (find_frame_containing_local_variable(name))
-        return make_ref_counted<AST::SimpleVariable>(invoking_node.position(), name);
+        return make_ref_counted<AST::SimpleVariable>(invoking_node.position(), TRY(String::from_deprecated_string(name)));
 
     auto value = TRY(TRY(const_cast<AST::Node&>(*arguments.last()).run(*this))->resolve_without_cast(*this));
-    set_local_variable(name.to_deprecated_string(), value);
+    set_local_variable(name, value);
 
     return make_ref_counted<AST::SyntheticNode>(invoking_node.position(), value);
 }
@@ -567,13 +567,13 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_error_if_unset(AST::ImmediateExpress
 
     auto name = TRY(TRY(const_cast<AST::Node&>(*arguments.first()).run(*this))->resolve_as_string(*this));
     if (find_frame_containing_local_variable(name))
-        return make_ref_counted<AST::SimpleVariable>(invoking_node.position(), name);
+        return make_ref_counted<AST::SimpleVariable>(invoking_node.position(), TRY(String::from_deprecated_string(name)));
 
     auto error_value = TRY(TRY(const_cast<AST::Node&>(*arguments.last()).run(*this))->resolve_as_string(*this));
     if (error_value.is_empty())
-        error_value = TRY(String::formatted("Expected {} to be set", name));
+        error_value = DeprecatedString::formatted("Expected {} to be set", name);
 
-    raise_error(ShellError::EvaluatedSyntaxError, error_value.bytes_as_string_view(), invoking_node.position());
+    raise_error(ShellError::EvaluatedSyntaxError, error_value, invoking_node.position());
     return nullptr;
 }
 
@@ -588,7 +588,7 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_null_if_unset_or_alternative(AST::Im
     if (!find_frame_containing_local_variable(name))
         return arguments.last();
 
-    return make_ref_counted<AST::SimpleVariable>(invoking_node.position(), name);
+    return make_ref_counted<AST::SimpleVariable>(invoking_node.position(), TRY(String::from_deprecated_string(name)));
 }
 
 ErrorOr<RefPtr<AST::Node>> Shell::immediate_reexpand(AST::ImmediateExpression& invoking_node, Vector<NonnullRefPtr<AST::Node>> const& arguments)
@@ -619,7 +619,7 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_length_of_variable(AST::ImmediateExp
     }
 
     auto name = TRY(TRY(const_cast<AST::Node&>(*arguments.first()).run(*this))->resolve_as_string(*this));
-    auto variable = make_ref_counted<AST::SimpleVariable>(invoking_node.position(), name);
+    auto variable = make_ref_counted<AST::SimpleVariable>(invoking_node.position(), TRY(String::from_deprecated_string(name)));
 
     return immediate_length_impl(
         invoking_node,
@@ -634,11 +634,11 @@ struct TernaryOperationNode;
 struct ErrorNode;
 
 struct Node {
-    Variant<String, i64, NonnullOwnPtr<BinaryOperationNode>, NonnullOwnPtr<UnaryOperationNode>, NonnullOwnPtr<TernaryOperationNode>, NonnullOwnPtr<ErrorNode>> value;
+    Variant<DeprecatedString, i64, NonnullOwnPtr<BinaryOperationNode>, NonnullOwnPtr<UnaryOperationNode>, NonnullOwnPtr<TernaryOperationNode>, NonnullOwnPtr<ErrorNode>> value;
 };
 
 struct ErrorNode {
-    String error;
+    DeprecatedString error;
 };
 
 enum class Operator {
@@ -730,7 +730,7 @@ static bool is_assignment_operator(Operator op)
     }
 }
 
-using Token = Variant<String, i64, Operator>;
+using Token = Variant<DeprecatedString, i64, Operator>;
 
 struct BinaryOperationNode {
     BinaryOperationNode(Operator op, Node lhs, Node rhs)
@@ -832,9 +832,9 @@ ErrorOr<Node> parse_assignment_expression(Span<Token>& tokens)
 
     auto& token = tokens.first();
     if (auto op = token.get_pointer<Operator>(); op && is_assignment_operator(*op)) {
-        if (!lhs.value.has<String>()) {
+        if (!lhs.value.has<DeprecatedString>()) {
             return Node {
-                make<ErrorNode>("Left-hand side of assignment must be a variable"_string)
+                make<ErrorNode>("Left-hand side of assignment must be a variable")
             };
         }
 
@@ -860,7 +860,7 @@ ErrorOr<Node> parse_ternary_expression(Span<Token>& tokens)
 
     if (!next_token_is_operator(tokens, Operator::TernaryColon)) {
         return Node {
-            make<ErrorNode>("Expected ':' after true value in ternary expression"_string)
+            make<ErrorNode>("Expected ':' after true value in ternary expression")
         };
     }
 
@@ -941,7 +941,7 @@ ErrorOr<Node> parse_unary_expression(Span<Token>& tokens)
 {
     if (tokens.is_empty()) {
         return Node {
-            make<ErrorNode>("Expected expression, got end of input"_string)
+            make<ErrorNode>("Expected expression, got end of input")
         };
     }
 
@@ -962,11 +962,11 @@ ErrorOr<Node> parse_unary_expression(Span<Token>& tokens)
 ErrorOr<Node> parse_primary_expression(Span<Token>& tokens)
 {
     if (tokens.is_empty())
-        return Node { make<ErrorNode>("Expected expression, got end of input"_string) };
+        return Node { make<ErrorNode>("Expected expression, got end of input") };
 
     auto& token = tokens.first();
     return token.visit(
-        [&](String const& var) -> ErrorOr<Node> {
+        [&](DeprecatedString const& var) -> ErrorOr<Node> {
             tokens = tokens.slice(1);
             return Node { var };
         },
@@ -981,7 +981,7 @@ ErrorOr<Node> parse_primary_expression(Span<Token>& tokens)
                 auto value = TRY(parse_expression(tokens));
                 if (!next_token_is_operator(tokens, Operator::CloseParen)) {
                     return Node {
-                        make<ErrorNode>("Expected ')' after expression in parentheses"_string)
+                        make<ErrorNode>("Expected ')' after expression in parentheses")
                     };
                 }
                 tokens = tokens.slice(1);
@@ -989,7 +989,7 @@ ErrorOr<Node> parse_primary_expression(Span<Token>& tokens)
             }
             default:
                 return Node {
-                    make<ErrorNode>("Expected expression, got operator"_string)
+                    make<ErrorNode>("Expected expression, got operator")
                 };
             }
         });
@@ -1054,7 +1054,7 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_math(AST::ImmediateExpression& invok
             if (all_of(integer_or_word, is_ascii_digit))
                 tokens.append(*integer_or_word.as_string().to_int());
             else
-                tokens.append(TRY(expression.substring_from_byte_offset_with_shared_superstring(*integer_or_word_start_offset, integer_or_word.length())));
+                tokens.append(TRY(expression.substring_from_byte_offset_with_shared_superstring(*integer_or_word_start_offset, integer_or_word.length())).to_deprecated_string());
 
             integer_or_word_start_offset.clear();
         }
@@ -1241,7 +1241,7 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_math(AST::ImmediateExpression& invok
         if (all_of(integer_or_word, is_ascii_digit))
             tokens.append(*integer_or_word.as_string().to_int());
         else
-            tokens.append(TRY(expression.substring_from_byte_offset_with_shared_superstring(*integer_or_word_start_offset, integer_or_word.length())));
+            tokens.append(TRY(expression.substring_from_byte_offset_with_shared_superstring(*integer_or_word_start_offset, integer_or_word.length())).to_deprecated_string());
 
         integer_or_word_start_offset.clear();
     }
@@ -1251,18 +1251,18 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_math(AST::ImmediateExpression& invok
     // Now interpret that.
     Function<ErrorOr<i64>(Arithmetic::Node const&)> interpret = [&](Arithmetic::Node const& node) -> ErrorOr<i64> {
         return node.value.visit(
-            [&](String const& name) -> ErrorOr<i64> {
+            [&](DeprecatedString const& name) -> ErrorOr<i64> {
                 size_t resolution_attempts_remaining = 100;
                 for (auto resolved_name = name; resolution_attempts_remaining > 0; --resolution_attempts_remaining) {
-                    auto value = TRY(look_up_local_variable(resolved_name.bytes_as_string_view()));
+                    auto value = TRY(look_up_local_variable(resolved_name.view()));
                     if (!value)
                         break;
 
                     StringBuilder builder;
                     builder.join(' ', TRY(const_cast<AST::Value&>(*value).resolve_as_list(const_cast<Shell&>(*this))));
-                    resolved_name = TRY(builder.to_string());
+                    resolved_name = builder.to_deprecated_string();
 
-                    auto integer = resolved_name.bytes_as_string_view().to_int<i64>();
+                    auto integer = resolved_name.view().to_int<i64>();
                     if (integer.has_value())
                         return *integer;
                 }
@@ -1278,7 +1278,7 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_math(AST::ImmediateExpression& invok
             [&](NonnullOwnPtr<Arithmetic::BinaryOperationNode> const& node) -> ErrorOr<i64> {
                 if (Arithmetic::is_assignment_operator(node->op)) {
                     // lhs must be a variable name.
-                    auto name = node->lhs.value.get_pointer<String>();
+                    auto name = node->lhs.value.get_pointer<DeprecatedString>();
                     if (!name) {
                         raise_error(ShellError::EvaluatedSyntaxError, "Invalid left-hand side of assignment", arguments.first()->position());
                         return 0;
@@ -1296,7 +1296,7 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_math(AST::ImmediateExpression& invok
                         }));
                     }
 
-                    set_local_variable(name->to_deprecated_string(), make_ref_counted<AST::StringValue>(TRY(String::number(rhs))));
+                    set_local_variable(*name, make_ref_counted<AST::StringValue>(DeprecatedString::number(rhs)));
                     return rhs;
                 }
 
@@ -1372,14 +1372,14 @@ ErrorOr<RefPtr<AST::Node>> Shell::immediate_math(AST::ImmediateExpression& invok
                 return TRY(interpret(node->false_value));
             },
             [&](NonnullOwnPtr<Arithmetic::ErrorNode> const& node) -> ErrorOr<i64> {
-                raise_error(ShellError::EvaluatedSyntaxError, node->error.to_deprecated_string(), arguments.first()->position());
+                raise_error(ShellError::EvaluatedSyntaxError, node->error, arguments.first()->position());
                 return 0;
             });
     };
 
     auto result = TRY(interpret(ast));
 
-    return make_ref_counted<AST::StringLiteral>(arguments.first()->position(), TRY(String::number(result)), AST::StringLiteral::EnclosureType::None);
+    return make_ref_counted<AST::StringLiteral>(arguments.first()->position(), DeprecatedString::number(result), AST::StringLiteral::EnclosureType::None);
 }
 
 ErrorOr<RefPtr<AST::Node>> Shell::run_immediate_function(StringView str, AST::ImmediateExpression& invoking_node, Vector<NonnullRefPtr<AST::Node>> const& arguments)

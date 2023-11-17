@@ -118,7 +118,7 @@ private:
     Vector<Token> m_previous_token_buffer;
 
     Vector<Error> m_errors;
-    HashMap<String, NonnullRefPtr<AST::Heredoc>> m_unprocessed_heredoc_entries;
+    HashMap<DeprecatedString, NonnullRefPtr<AST::Heredoc>> m_unprocessed_heredoc_entries;
 
     Token m_eof_token;
 

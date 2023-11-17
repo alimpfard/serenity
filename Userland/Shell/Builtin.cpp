@@ -1075,10 +1075,10 @@ ErrorOr<int> Shell::builtin_source(Main::Arguments arguments)
     } };
 
     if (!args.is_empty()) {
-        Vector<String> arguments;
+        Vector<DeprecatedString> arguments;
         arguments.ensure_capacity(args.size());
         for (auto& arg : args)
-            arguments.append(TRY(String::from_utf8(arg)));
+            arguments.append(arg);
 
         set_local_variable("ARGV", AST::make_ref_counted<AST::ListValue>(move(arguments)));
     }
@@ -1109,7 +1109,7 @@ ErrorOr<int> Shell::builtin_time(Main::Arguments arguments)
     AST::Command command;
     TRY(command.argv.try_ensure_capacity(args.size()));
     for (auto& arg : args)
-        command.argv.append(TRY(String::from_utf8(arg)));
+        command.argv.append(arg);
 
     auto commands = TRY(expand_aliases({ move(command) }));
 
@@ -1315,20 +1315,20 @@ ErrorOr<int> Shell::builtin_unset(Main::Arguments arguments)
 ErrorOr<int> Shell::builtin_set(Main::Arguments arguments)
 {
     if (arguments.strings.size() == 1) {
-        HashMap<String, String> vars;
+        HashMap<DeprecatedString, DeprecatedString> vars;
 
         StringBuilder builder;
         for (auto& frame : m_local_frames) {
             for (auto& var : frame->local_variables) {
                 builder.join(" "sv, TRY(var.value->resolve_as_list(*this)));
-                vars.set(TRY(String::from_deprecated_string(var.key)), TRY(builder.to_string()));
+                vars.set(var.key, builder.to_deprecated_string());
                 builder.clear();
             }
         }
 
         struct Variable {
             StringView name;
-            String value;
+            DeprecatedString value;
         };
 
         Vector<Variable> variables;
@@ -1364,10 +1364,10 @@ ErrorOr<int> Shell::builtin_set(Main::Arguments arguments)
         return 1;
 
     if (!argv_to_set.is_empty() || arguments.strings.last() == "--"sv) {
-        Vector<String> argv;
+        Vector<DeprecatedString> argv;
         argv.ensure_capacity(argv_to_set.size());
         for (auto& arg : argv_to_set)
-            argv.unchecked_append(TRY(String::from_utf8(arg)));
+            argv.unchecked_append(arg);
         set_local_variable("ARGV", AST::make_ref_counted<AST::ListValue>(move(argv)));
     }
 
@@ -1388,7 +1388,7 @@ ErrorOr<int> Shell::builtin_not(Main::Arguments arguments)
     AST::Command command;
     TRY(command.argv.try_ensure_capacity(args.size()));
     for (auto& arg : args)
-        command.argv.unchecked_append(TRY(String::from_utf8(arg)));
+        command.argv.unchecked_append(arg);
 
     auto commands = TRY(expand_aliases({ move(command) }));
     int exit_code = 1;
@@ -1407,25 +1407,25 @@ ErrorOr<int> Shell::builtin_not(Main::Arguments arguments)
 ErrorOr<int> Shell::builtin_kill(Main::Arguments arguments)
 {
     // Simply translate the arguments and pass them to `kill'
-    Vector<String> replaced_values;
+    Vector<DeprecatedString> replaced_values;
     auto kill_path_or_error = Core::System::resolve_executable_from_environment("kill"sv);
     if (kill_path_or_error.is_error()) {
         warnln("kill: `kill' not found in PATH");
         return 126;
     }
 
-    replaced_values.append(kill_path_or_error.release_value());
+    replaced_values.append(kill_path_or_error.release_value().to_deprecated_string());
     for (size_t i = 1; i < arguments.strings.size(); ++i) {
         if (auto job_id = resolve_job_spec(arguments.strings[i]); job_id.has_value()) {
             auto job = find_job(job_id.value());
             if (job) {
-                replaced_values.append(TRY(String::number(job->pid())));
+                replaced_values.append(DeprecatedString::number(job->pid()));
             } else {
                 warnln("kill: Job with pid {} not found", job_id.value());
                 return 1;
             }
         } else {
-            replaced_values.append(TRY(String::from_utf8(arguments.strings[i])));
+            replaced_values.append(arguments.strings[i]);
         }
     }
 
@@ -1539,19 +1539,19 @@ ErrorOr<int> Shell::builtin_argsparser_parse(Main::Arguments arguments)
     auto try_convert = [](StringView value, Type type) -> ErrorOr<Optional<RefPtr<AST::Value>>> {
         switch (type) {
         case Type::Bool:
-            return AST::make_ref_counted<AST::StringValue>("true"_string);
+            return AST::make_ref_counted<AST::StringValue>(DeprecatedString { "true" });
         case Type::String:
-            return AST::make_ref_counted<AST::StringValue>(TRY(String::from_utf8(value)));
+            return AST::make_ref_counted<AST::StringValue>(value);
         case Type::I32:
             if (auto number = value.to_int(); number.has_value())
-                return AST::make_ref_counted<AST::StringValue>(TRY(String::number(*number)));
+                return AST::make_ref_counted<AST::StringValue>(DeprecatedString::number(*number));
 
             warnln("Invalid value for type i32: {}", value);
             return OptionalNone {};
         case Type::U32:
         case Type::Size:
             if (auto number = value.to_uint(); number.has_value())
-                return AST::make_ref_counted<AST::StringValue>(TRY(String::number(*number)));
+                return AST::make_ref_counted<AST::StringValue>(DeprecatedString::number(*number));
 
             warnln("Invalid value for type u32|size: {}", value);
             return OptionalNone {};
@@ -1564,7 +1564,7 @@ ErrorOr<int> Shell::builtin_argsparser_parse(Main::Arguments arguments)
                 return OptionalNone {};
             }
 
-            return AST::make_ref_counted<AST::StringValue>(TRY(String::number(number)));
+            return AST::make_ref_counted<AST::StringValue>(DeprecatedString::number(number));
         }
         default:
             VERIFY_NOT_REACHED();
@@ -1723,7 +1723,7 @@ ErrorOr<int> Shell::builtin_argsparser_parse(Main::Arguments arguments)
             if (type == Type::Bool) {
                 set_local_variable(
                     current_variable,
-                    make_ref_counted<AST::StringValue>("false"_string),
+                    make_ref_counted<AST::StringValue>("false"),
                     true);
             }
             return true;
@@ -1947,10 +1947,10 @@ ErrorOr<int> Shell::builtin_read(Main::Arguments arguments)
     if (!parser.parse(arguments, Core::ArgsParser::FailureBehavior::Ignore))
         return 1;
 
-    auto split_by_any_of = " \t\n"_string;
+    DeprecatedString split_by_any_of = " \t\n";
 
     if (auto const* value_from_env = getenv("IFS"); value_from_env)
-        split_by_any_of = TRY(String::from_utf8({ value_from_env, strlen(value_from_env) }));
+        split_by_any_of = DeprecatedString(StringView { value_from_env, strlen(value_from_env) });
     else if (auto split_by_variable = TRY(look_up_local_variable("IFS"sv)); split_by_variable)
         split_by_any_of = TRY(const_cast<AST::Value&>(*split_by_variable).resolve_as_string(*this));
 
@@ -1999,7 +1999,7 @@ ErrorOr<int> Shell::builtin_read(Main::Arguments arguments)
 
     auto line = builder.string_view();
     if (variables.size() == 1) {
-        set_local_variable(variables[0], make_ref_counted<AST::StringValue>(TRY(String::from_utf8(line))));
+        set_local_variable(variables[0], make_ref_counted<AST::StringValue>(line));
         return 0;
     }
 
@@ -2015,7 +2015,7 @@ ErrorOr<int> Shell::builtin_read(Main::Arguments arguments)
         else
             variable_value = fields[i];
 
-        set_local_variable(variable, make_ref_counted<AST::StringValue>(TRY(String::from_utf8(variable_value))));
+        set_local_variable(variable, make_ref_counted<AST::StringValue>(variable_value));
     }
 
     return 0;
@@ -2042,7 +2042,7 @@ ErrorOr<int> Shell::builtin_run_with_env(Main::Arguments arguments)
     AST::Command command;
     TRY(command.argv.try_ensure_capacity(command_and_arguments.size()));
     for (auto& arg : command_and_arguments)
-        command.argv.append(TRY(String::from_utf8(arg)));
+        command.argv.append(arg);
 
     auto commands = TRY(expand_aliases({ move(command) }));
 
@@ -2125,7 +2125,7 @@ ErrorOr<int> Shell::builtin_in_parallel(Main::Arguments arguments)
     AST::Command command;
     TRY(command.argv.try_ensure_capacity(command_and_arguments.size()));
     for (auto& arg : command_and_arguments)
-        command.argv.append(TRY(String::from_utf8(arg)));
+        command.argv.append(arg);
 
     auto commands = TRY(expand_aliases({ move(command) }));
 

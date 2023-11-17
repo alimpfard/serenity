@@ -244,10 +244,10 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
         shell->cache_path();
     }
 
-    Vector<String> args_to_pass;
+    Vector<DeprecatedString> args_to_pass;
     TRY(args_to_pass.try_ensure_capacity(script_args.size()));
     for (auto& arg : script_args)
-        TRY(args_to_pass.try_append(TRY(String::from_utf8(arg))));
+        TRY(args_to_pass.try_append(arg));
 
     shell->set_local_variable("ARGV", adopt_ref(*new Shell::AST::ListValue(move(args_to_pass))));
 

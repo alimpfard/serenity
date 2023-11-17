@@ -421,7 +421,7 @@ ErrorOr<RefPtr<AST::Value const>> Shell::look_up_local_variable(StringView name)
 ErrorOr<RefPtr<AST::Value const>> Shell::get_argument(size_t index) const
 {
     if (index == 0)
-        return adopt_ref(*new AST::StringValue(TRY(String::from_deprecated_string(current_script))));
+        return adopt_ref(*new AST::StringValue(current_script));
 
     --index;
     if (auto argv = TRY(look_up_local_variable("ARGV"sv))) {
@@ -743,7 +743,7 @@ ErrorOr<RefPtr<Job>> Shell::run_command(const AST::Command& command)
     auto apply_rewirings = [&]() -> ErrorOr<void> {
         for (auto& rewiring : rewirings) {
 
-            dbgln_if(SH_DEBUG, "in {}<{}>, dup2({}, {})", command.argv.is_empty() ? "(<Empty>)"sv : command.argv[0], getpid(), rewiring->old_fd, rewiring->new_fd);
+            dbgln_if(SH_DEBUG, "in {}<{}>, dup2({}, {})", command.argv.is_empty() ? "(<Empty>)" : command.argv[0], getpid(), rewiring->old_fd, rewiring->new_fd);
             int rc = dup2(rewiring->old_fd, rewiring->new_fd);
             if (rc < 0)
                 return Error::from_syscall("dup2"sv, rc);
@@ -808,7 +808,7 @@ ErrorOr<RefPtr<Job>> Shell::run_command(const AST::Command& command)
     argv.ensure_capacity(command.argv.size() + 1);
 
     for (auto& arg : command.argv) {
-        copy_argv.append(arg.to_deprecated_string());
+        copy_argv.append(arg);
         argv.append(copy_argv.last().characters());
     }
 
@@ -996,10 +996,8 @@ void Shell::execute_process(Vector<char const*>&& argv)
         }
         if (saved_errno == ENOENT) {
             do {
-                auto path_as_string_or_error = String::from_utf8({ argv[0], strlen(argv[0]) });
-                if (path_as_string_or_error.is_error())
-                    break;
-                auto file_result = Core::File::open(path_as_string_or_error.value(), Core::File::OpenMode::Read);
+                auto path = StringView { argv[0], strlen(argv[0]) };
+                auto file_result = Core::File::open(path, Core::File::OpenMode::Read);
                 if (file_result.is_error())
                     break;
                 auto buffered_file_result = Core::InputBufferedFile::create(file_result.release_value());
@@ -1804,7 +1802,7 @@ ErrorOr<Vector<Line::CompletionSuggestion>> Shell::complete_via_program_itself(s
     if (command_node->would_execute())
         return Error::from_string_literal("Refusing to complete nodes that would execute");
 
-    String program_name_storage;
+    DeprecatedString program_name_storage;
     if (known_program_name.is_null()) {
         auto node = command_node->leftmost_trivial_literal();
         if (!node)
@@ -1818,13 +1816,13 @@ ErrorOr<Vector<Line::CompletionSuggestion>> Shell::complete_via_program_itself(s
     completion_command.argv.append(program_name_storage);
     completion_command = TRY(expand_aliases({ completion_command })).last();
 
-    auto completion_utility_name = TRY(String::formatted("_complete_{}", completion_command.argv[0]));
+    auto completion_utility_name = DeprecatedString::formatted("_complete_{}", completion_command.argv[0]);
     if (binary_search(cached_path.span(), completion_utility_name, nullptr, RunnablePathComparator {}) != nullptr)
         completion_command.argv[0] = completion_utility_name;
     else if (!options.invoke_program_for_autocomplete)
         return Error::from_string_literal("Refusing to use the program itself as completion source");
 
-    completion_command.argv.extend({ "--complete"_string, "--"_string });
+    completion_command.argv.extend({ "--complete", "--" });
 
     struct Visitor : public AST::NodeVisitor {
         Visitor(Shell& shell, AST::Position position)
@@ -1836,12 +1834,12 @@ ErrorOr<Vector<Line::CompletionSuggestion>> Shell::complete_via_program_itself(s
 
         Shell& shell;
         AST::Position completion_position;
-        Vector<Vector<String>> lists;
+        Vector<Vector<DeprecatedString>> lists;
         bool fail { false };
 
         void push_list() { lists.empend(); }
-        Vector<String> pop_list() { return lists.take_last(); }
-        Vector<String>& list() { return lists.last(); }
+        Vector<DeprecatedString> pop_list() { return lists.take_last(); }
+        Vector<DeprecatedString>& list() { return lists.last(); }
 
         bool should_include(AST::Node const* node) const { return node->position().end_offset <= completion_position.end_offset; }
 
@@ -1882,7 +1880,7 @@ ErrorOr<Vector<Line::CompletionSuggestion>> Shell::complete_via_program_itself(s
             auto list = pop_list();
             StringBuilder builder;
             builder.join(""sv, list);
-            this->list().append(builder.to_string().release_value_but_fixme_should_propagate_errors());
+            this->list().append(builder.to_deprecated_string());
         }
 
         virtual void visit(AST::Glob const* node) override
@@ -1901,7 +1899,7 @@ ErrorOr<Vector<Line::CompletionSuggestion>> Shell::complete_via_program_itself(s
             auto list = pop_list();
             StringBuilder builder;
             builder.join(""sv, list);
-            this->list().append(builder.to_string().release_value_but_fixme_should_propagate_errors());
+            this->list().append(builder.to_deprecated_string());
         }
 
         virtual void visit(AST::ImmediateExpression const* node) override
@@ -1956,7 +1954,7 @@ ErrorOr<Vector<Line::CompletionSuggestion>> Shell::complete_via_program_itself(s
                 for (auto& right_entry : right) {
                     builder.append(left_entry);
                     builder.append(right_entry);
-                    list().append(builder.to_string().release_value_but_fixme_should_propagate_errors());
+                    list().append(builder.to_deprecated_string());
                     builder.clear();
                 }
             }
@@ -1993,7 +1991,7 @@ ErrorOr<Vector<Line::CompletionSuggestion>> Shell::complete_via_program_itself(s
 
     completion_command.argv.extend(visitor.list());
 
-    auto devnull = "/dev/null"_string;
+    auto devnull = "/dev/null";
     completion_command.should_wait = true;
     completion_command.redirections.append(AST::PathRedirection::create(devnull, STDERR_FILENO, AST::PathRedirection::Write));
     completion_command.redirections.append(AST::PathRedirection::create(devnull, STDIN_FILENO, AST::PathRedirection::Read));

@@ -213,7 +213,7 @@ void Parser::handle_heredoc_contents()
 
             return make_ref_counted<AST::StringLiteral>(
                 token.position.value_or(empty_position()),
-                TRY(String::from_utf8(token.value)),
+                token.value,
                 AST::StringLiteral::EnclosureType::None);
         }();
 
@@ -368,7 +368,7 @@ Vector<Token> Parser::perform_expansions(Vector<Token> tokens)
             continue;
         }
 
-        if (is_io_operator(token) && previous_token->type == Token::Type::Word && all_of(previous_token->value.bytes_as_string_view(), is_ascii_digit)) {
+        if (is_io_operator(token) && previous_token->type == Token::Type::Word && all_of(previous_token->value.view(), is_ascii_digit)) {
             previous_token->type = Token::Type::IoNumber;
         }
 
@@ -410,8 +410,8 @@ Vector<Token> Parser::perform_expansions(Vector<Token> tokens)
         // Check if we're in a command prefix (could be an assignment)
         if (!m_disallow_command_prefix && token.type == Token::Type::Word && token.value.contains('=')) {
             // If the word before '=' is a valid name, this is an assignment
-            auto equal_offset = *token.value.find_byte_offset('=');
-            if (is_valid_name(token.value.bytes_as_string_view().substring_view(0, equal_offset)))
+            auto equal_offset = *token.value.find('=');
+            if (is_valid_name(token.value.substring_view(0, equal_offset)))
                 token.type = Token::Type::AssignmentWord;
             else
                 m_disallow_command_prefix = true;
@@ -439,7 +439,7 @@ Vector<Token> Parser::perform_expansions(Vector<Token> tokens)
                     // ${NUMBER}
                     if (all_of(text, is_ascii_digit)) {
                         return ResolvedParameterExpansion {
-                            .parameter = expansion.parameter.to_string().release_value_but_fixme_should_propagate_errors(),
+                            .parameter = expansion.parameter.to_deprecated_string(),
                             .argument = {},
                             .range = expansion.range,
                             .op = ResolvedParameterExpansion::Op::GetPositionalParameter,
@@ -477,7 +477,7 @@ Vector<Token> Parser::perform_expansions(Vector<Token> tokens)
                             } else {
                                 error(token, "Unknown parameter expansion: {}", text);
                                 return ResolvedParameterExpansion {
-                                    .parameter = expansion.parameter.to_string().release_value_but_fixme_should_propagate_errors(),
+                                    .parameter = expansion.parameter.to_deprecated_string(),
                                     .argument = {},
                                     .range = expansion.range,
                                     .op = ResolvedParameterExpansion::Op::StringLength,
@@ -486,7 +486,7 @@ Vector<Token> Parser::perform_expansions(Vector<Token> tokens)
                         }
 
                         return ResolvedParameterExpansion {
-                            .parameter = String::from_code_point(text[0]),
+                            .parameter = StringView { &text[0], 1 },
                             .argument = {},
                             .range = expansion.range,
                             .op = op,
@@ -496,7 +496,7 @@ Vector<Token> Parser::perform_expansions(Vector<Token> tokens)
 
                     if (text.starts_with('#')) {
                         return ResolvedParameterExpansion {
-                            .parameter = String::from_utf8(text.substring_view(1)).release_value_but_fixme_should_propagate_errors(),
+                            .parameter = text.substring_view(1),
                             .argument = {},
                             .range = expansion.range,
                             .op = ResolvedParameterExpansion::Op::StringLength,
@@ -537,7 +537,7 @@ Vector<Token> Parser::perform_expansions(Vector<Token> tokens)
                         default:
                             error(token, "Unknown parameter expansion: {}", text);
                             return ResolvedParameterExpansion {
-                                .parameter = String::from_utf8(parameter).release_value_but_fixme_should_propagate_errors(),
+                                .parameter = parameter,
                                 .argument = {},
                                 .range = expansion.range,
                                 .op = ResolvedParameterExpansion::Op::StringLength,
@@ -584,7 +584,7 @@ Vector<Token> Parser::perform_expansions(Vector<Token> tokens)
                         } else {
                             error(token, "Unknown parameter expansion: {}", text);
                             return ResolvedParameterExpansion {
-                                .parameter = String::from_utf8(parameter).release_value_but_fixme_should_propagate_errors(),
+                                .parameter = parameter,
                                 .argument = {},
                                 .range = expansion.range,
                                 .op = ResolvedParameterExpansion::Op::StringLength,
@@ -594,8 +594,8 @@ Vector<Token> Parser::perform_expansions(Vector<Token> tokens)
                     VERIFY(lexer.is_eof());
 
                     return ResolvedParameterExpansion {
-                        .parameter = String::from_utf8(parameter).release_value_but_fixme_should_propagate_errors(),
-                        .argument = String::from_utf8(argument).release_value_but_fixme_should_propagate_errors(),
+                        .parameter = parameter,
+                        .argument = argument,
                         .range = expansion.range,
                         .op = op,
                         .expand = ResolvedParameterExpansion::Expand::Word,
@@ -841,7 +841,7 @@ ErrorOr<RefPtr<AST::Node>> Parser::parse_pipe_sequence(bool is_negated)
                     Vector<NonnullRefPtr<AST::Node>> {
                         make_ref_counted<AST::BarewordLiteral>(
                             node->position(),
-                            "not"_string),
+                            "not"),
                         *static_cast<AST::CastToCommand&>(*node).inner() }));
         }
     }
@@ -929,7 +929,7 @@ ErrorOr<RefPtr<AST::Node>> Parser::parse_function_definition()
 
     return make_ref_counted<AST::FunctionDeclaration>(
         name.position.value_or(empty_position()).with_end(peek().position.value_or(empty_position())),
-        AST::NameWithPosition { TRY(String::from_utf8(name.value)), name.position.value_or(empty_position()) },
+        AST::NameWithPosition { TRY(String::from_utf8(name.value.view())), name.position.value_or(empty_position()) },
         Vector<AST::NameWithPosition> {},
         body.release_nonnull());
 }
@@ -1431,7 +1431,7 @@ ErrorOr<RefPtr<AST::Node>> Parser::parse_for_clause()
     Optional<AST::Position> name_position;
     if (peek().type == Token::Type::VariableName) {
         name_position = peek().position;
-        name = consume().value;
+        name = TRY(String::from_deprecated_string(consume().value));
     } else {
         name = "it"_string;
         error(peek(), "Expected a variable name, not {}", peek().type_name());
@@ -1455,7 +1455,7 @@ ErrorOr<RefPtr<AST::Node>> Parser::parse_for_clause()
         error(peek(), "Expected 'in' or a newline, not {}", peek().type_name());
     } else {
         // FOR NAME newline+ do_group //-> FOR NAME IN "$@" newline+ do_group
-        iterated_expression = TRY(Parser { "\"$@\""_string }.parse_word());
+        iterated_expression = TRY(Parser { "\"$@\""sv }.parse_word());
     }
 
     if (saw_in && !saw_newline) {
@@ -1530,7 +1530,7 @@ ErrorOr<RefPtr<AST::Node>> Parser::parse_word()
             auto user = lexer.consume_while(is_ascii_alphanumeric);
             string = lexer.remaining();
 
-            word = make_ref_counted<AST::Tilde>(token.position.value_or(empty_position()), TRY(String::from_utf8(user)));
+            word = make_ref_counted<AST::Tilde>(token.position.value_or(empty_position()), user);
         }
 
         if (string.is_empty())
@@ -1538,7 +1538,7 @@ ErrorOr<RefPtr<AST::Node>> Parser::parse_word()
 
         auto node = make_ref_counted<AST::BarewordLiteral>(
             token.position.value_or(empty_position()),
-            TRY(String::from_utf8(string)));
+            string);
 
         if (word) {
             word = make_ref_counted<AST::Juxtaposition>(
@@ -1556,7 +1556,7 @@ ErrorOr<RefPtr<AST::Node>> Parser::parse_word()
     auto append_string_literal = [&](StringView string) -> ErrorOr<void> {
         auto node = make_ref_counted<AST::StringLiteral>(
             token.position.value_or(empty_position()),
-            TRY(String::from_utf8(string)),
+            string,
             AST::StringLiteral::EnclosureType::SingleQuotes);
 
         if (word) {
@@ -1575,7 +1575,7 @@ ErrorOr<RefPtr<AST::Node>> Parser::parse_word()
     auto append_string_part = [&](StringView string) -> ErrorOr<void> {
         auto node = make_ref_counted<AST::StringLiteral>(
             token.position.value_or(empty_position()),
-            TRY(String::from_utf8(string)),
+            string,
             AST::StringLiteral::EnclosureType::DoubleQuotes);
 
         if (word) {
@@ -1603,7 +1603,7 @@ ErrorOr<RefPtr<AST::Node>> Parser::parse_word()
                     token.position.value_or(empty_position()),
                     make_ref_counted<AST::StringLiteral>(
                         token.position.value_or(empty_position()),
-                        TRY(String::from_utf8(x.source_expression)),
+                        x.source_expression,
                         AST::StringLiteral::EnclosureType::DoubleQuotes)),
             },
             Optional<AST::Position> {});
@@ -1666,7 +1666,7 @@ ErrorOr<RefPtr<AST::Node>> Parser::parse_word()
         case ResolvedParameterExpansion::Op::GetVariable:
             node = make_ref_counted<AST::SimpleVariable>(
                 token.position.value_or(empty_position()),
-                x.parameter);
+                TRY(String::from_deprecated_string(x.parameter)));
             break;
         case ResolvedParameterExpansion::Op::GetLastBackgroundPid:
             node = make_ref_counted<AST::SyntaxError>(
@@ -1841,7 +1841,7 @@ ErrorOr<RefPtr<AST::Node>> Parser::parse_word()
         dbgln_if(SHELL_POSIX_PARSER_DEBUG, "Expanding '{}' with {} expansion entries", token.value, token.resolved_expansions.size());
 
     size_t current_offset = 0;
-    auto value_bytes = token.value.bytes_as_string_view();
+    auto value_bytes = token.value.view();
     for (auto& expansion : token.resolved_expansions) {
         TRY(expansion.visit(
             [&](ResolvedParameterExpansion const& x) -> ErrorOr<void> {
@@ -1958,8 +1958,8 @@ ErrorOr<RefPtr<AST::Node>> Parser::parse_simple_command()
 {
     auto start_position = peek().position.value_or(empty_position());
 
-    Vector<String> definitions;
-    HashMap<String, NonnullRefPtr<AST::Node>> list_assignments;
+    Vector<DeprecatedString> definitions;
+    HashMap<DeprecatedString, NonnullRefPtr<AST::Node>> list_assignments;
     Vector<NonnullRefPtr<AST::Node>> nodes;
 
     for (;;) {
@@ -1988,17 +1988,17 @@ ErrorOr<RefPtr<AST::Node>> Parser::parse_simple_command()
             // run_with_env -e*(assignments) -- (command)
             nodes.append(make_ref_counted<AST::BarewordLiteral>(
                 empty_position(),
-                "run_with_env"_string));
+                "run_with_env"));
         }
 
         auto position = peek().position.value_or(empty_position());
-        nodes.append(reexpand(position, make_ref_counted<AST::StringLiteral>(position, TRY(String::formatted("-e{}", consume().value)), AST::StringLiteral::EnclosureType::DoubleQuotes)));
+        nodes.append(reexpand(position, make_ref_counted<AST::StringLiteral>(position, DeprecatedString::formatted("-e{}", consume().value), AST::StringLiteral::EnclosureType::DoubleQuotes)));
     }
 
     if (!definitions.is_empty()) {
         nodes.append(make_ref_counted<AST::BarewordLiteral>(
             empty_position(),
-            "--"_string));
+            "--"));
     }
 
     // WORD or io_redirect: IO_NUMBER or io_file
@@ -2009,23 +2009,23 @@ ErrorOr<RefPtr<AST::Node>> Parser::parse_simple_command()
         if (!definitions.is_empty() || !list_assignments.is_empty()) {
             Vector<AST::VariableDeclarations::Variable> variables;
             for (auto& definition : definitions) {
-                auto equal_offset = definition.find_byte_offset('=');
+                auto equal_offset = definition.find('=');
                 auto split_offset = equal_offset.value_or(definition.bytes().size());
                 auto name = make_ref_counted<AST::BarewordLiteral>(
                     empty_position(),
-                    TRY(definition.substring_from_byte_offset_with_shared_superstring(0, split_offset)));
+                    definition.substring(0, split_offset));
 
                 auto position = peek().position.value_or(empty_position());
-                auto expanded_value = reexpand(position, make_ref_counted<AST::StringLiteral>(position, TRY(definition.substring_from_byte_offset_with_shared_superstring(split_offset + 1)), AST::StringLiteral::EnclosureType::DoubleQuotes));
+                auto expanded_value = reexpand(position, make_ref_counted<AST::StringLiteral>(position, definition.substring(split_offset + 1), AST::StringLiteral::EnclosureType::DoubleQuotes));
 
                 variables.append({ move(name), move(expanded_value) });
             }
             for (auto& [key, value] : list_assignments) {
-                auto equal_offset = key.find_byte_offset('=');
+                auto equal_offset = key.find('=');
                 auto split_offset = equal_offset.value_or(key.bytes().size());
                 auto name = make_ref_counted<AST::BarewordLiteral>(
                     empty_position(),
-                    TRY(key.substring_from_byte_offset_with_shared_superstring(0, split_offset)));
+                    key.substring(0, split_offset));
 
                 variables.append({ move(name), move(value) });
             }
@@ -2084,7 +2084,7 @@ ErrorOr<RefPtr<AST::Node>> Parser::parse_io_redirect()
     Optional<int> io_number;
 
     if (peek().type == Token::Type::IoNumber)
-        io_number = consume().value.bytes_as_string_view().to_int();
+        io_number = consume().value.to_int();
 
     if (auto io_file = TRY(parse_io_file(start_position, io_number)))
         return io_file;
@@ -2194,7 +2194,7 @@ ErrorOr<RefPtr<AST::Node>> Parser::parse_io_file(AST::Position start_position, O
                     source_fd);
             }
 
-            auto maybe_target_fd = text.bytes_as_string_view().to_int();
+            auto maybe_target_fd = text.to_int();
             if (maybe_target_fd.has_value()) {
                 auto target_fd = maybe_target_fd.release_value();
                 if (is_less)

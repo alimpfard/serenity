@@ -356,7 +356,7 @@ RefPtr<AST::Node> Parser::parse_variable_decls()
         return nullptr;
     }
 
-    auto name_expr = create<AST::BarewordLiteral>(TRY_OR_THROW_PARSE_ERROR(String::from_utf8(var_name)));
+    auto name_expr = create<AST::BarewordLiteral>(var_name);
 
     auto start = push_start();
     auto expression = parse_expression();
@@ -375,7 +375,7 @@ RefPtr<AST::Node> Parser::parse_variable_decls()
     if (!expression) {
         if (is_whitespace(peek())) {
             auto string_start = push_start();
-            expression = create<AST::StringLiteral>(String {}, AST::StringLiteral::EnclosureType::None);
+            expression = create<AST::StringLiteral>(DeprecatedString {}, AST::StringLiteral::EnclosureType::None);
         } else {
             restore_to(pos_before_name.offset, pos_before_name.line);
             return nullptr;
@@ -1428,7 +1428,7 @@ RefPtr<AST::Node> Parser::parse_string()
         bool is_error = false;
         if (!expect('\''))
             is_error = true;
-        auto result = create<AST::StringLiteral>(TRY_OR_THROW_PARSE_ERROR(String::from_utf8(text)), AST::StringLiteral::EnclosureType::SingleQuotes); // String Literal
+        auto result = create<AST::StringLiteral>(text, AST::StringLiteral::EnclosureType::SingleQuotes); // String Literal
         if (is_error)
             result->set_is_syntax_error(*create<AST::SyntaxError>("Expected a terminating single quote"_string, true));
         return result;
@@ -1510,7 +1510,7 @@ RefPtr<AST::Node> Parser::parse_string_inner(StringEndCondition condition)
             continue;
         }
         if (peek() == '$') {
-            auto string_literal = create<AST::StringLiteral>(TRY_OR_THROW_PARSE_ERROR(builder.to_string()), AST::StringLiteral::EnclosureType::DoubleQuotes); // String Literal
+            auto string_literal = create<AST::StringLiteral>(builder.to_deprecated_string(), AST::StringLiteral::EnclosureType::DoubleQuotes); // String Literal
             auto read_concat = [&](auto&& node) {
                 auto inner = create<AST::StringPartCompose>(
                     move(string_literal),
@@ -1536,7 +1536,7 @@ RefPtr<AST::Node> Parser::parse_string_inner(StringEndCondition condition)
         builder.append(consume());
     }
 
-    return create<AST::StringLiteral>(TRY_OR_THROW_PARSE_ERROR(builder.to_string()), AST::StringLiteral::EnclosureType::DoubleQuotes); // String Literal
+    return create<AST::StringLiteral>(builder.to_deprecated_string(), AST::StringLiteral::EnclosureType::DoubleQuotes); // String Literal
 }
 
 RefPtr<AST::Node> Parser::parse_variable()
@@ -1762,7 +1762,7 @@ RefPtr<AST::Node> Parser::parse_history_designator()
         consume();
         selector.event.kind = AST::HistorySelector::EventKind::IndexFromEnd;
         selector.event.index = 0;
-        selector.event.text = "!"_string;
+        selector.event.text = "!";
         break;
     case '?':
         consume();
@@ -1791,7 +1791,7 @@ RefPtr<AST::Node> Parser::parse_history_designator()
                 selector.event.kind = AST::HistorySelector::EventKind::IndexFromEnd;
             else
                 selector.event.kind = AST::HistorySelector::EventKind::IndexFromStart;
-            auto number = abs(selector.event.text.bytes_as_string_view().to_int().value_or(0));
+            auto number = abs(selector.event.text.to_int().value_or(0));
             if (number != 0)
                 selector.event.index = number - 1;
             else
@@ -1905,7 +1905,7 @@ RefPtr<AST::Node> Parser::parse_comment()
 
     consume();
     auto text = consume_while(is_not('\n'));
-    return create<AST::Comment>(TRY_OR_THROW_PARSE_ERROR(String::from_utf8(text))); // Comment
+    return create<AST::Comment>(text); // Comment
 }
 
 RefPtr<AST::Node> Parser::parse_bareword()
@@ -1947,17 +1947,17 @@ RefPtr<AST::Node> Parser::parse_bareword()
 
     auto current_end = m_offset;
     auto current_line = line();
-    auto string = TRY_OR_THROW_PARSE_ERROR(builder.to_string());
+    auto string = builder.to_deprecated_string();
     if (string.starts_with('~')) {
-        String username;
+        DeprecatedString username;
         RefPtr<AST::Node> tilde, text;
 
-        auto first_slash_index = string.find_byte_offset('/');
+        auto first_slash_index = string.find('/');
         if (first_slash_index.has_value()) {
-            username = TRY_OR_THROW_PARSE_ERROR(string.substring_from_byte_offset(1, *first_slash_index - 1));
-            string = TRY_OR_THROW_PARSE_ERROR(string.substring_from_byte_offset(*first_slash_index));
+            username = string.substring(1, *first_slash_index - 1);
+            string = string.substring(*first_slash_index);
         } else {
-            username = TRY_OR_THROW_PARSE_ERROR(string.substring_from_byte_offset(1));
+            username = string.substring(1);
             string = {};
         }
 
@@ -1966,7 +1966,7 @@ RefPtr<AST::Node> Parser::parse_bareword()
             restore_to(rule_start->offset, rule_start->line);
             auto ch = consume();
             VERIFY(ch == '~');
-            auto username_length = username.bytes_as_string_view().length();
+            auto username_length = username.length();
             tilde = create<AST::Tilde>(move(username));
             // Consume the username (if any)
             for (size_t i = 0; i < username_length; ++i)
@@ -1986,9 +1986,9 @@ RefPtr<AST::Node> Parser::parse_bareword()
         return create<AST::Juxtaposition>(tilde.release_nonnull(), text.release_nonnull()); // Juxtaposition Variable Bareword
     }
 
-    if (string.starts_with_bytes("\\~"sv)) {
+    if (string.starts_with("\\~"sv)) {
         // Un-escape the tilde, but only at the start (where it would be an expansion)
-        string = TRY_OR_THROW_PARSE_ERROR(string.substring_from_byte_offset(1));
+        string = string.substring(1);
     }
 
     return create<AST::BarewordLiteral>(move(string)); // Bareword Literal
@@ -2040,7 +2040,7 @@ RefPtr<AST::Node> Parser::parse_glob()
             }
         }
 
-        return create<AST::Glob>(TRY_OR_THROW_PARSE_ERROR(textbuilder.to_string())); // Glob
+        return create<AST::Glob>(textbuilder.to_deprecated_string()); // Glob
     }
 
     return bareword_part;
@@ -2076,7 +2076,7 @@ RefPtr<AST::Node> Parser::parse_brace_expansion_spec()
 
     if (next_is(","sv)) {
         // Note that we don't consume the ',' here.
-        subexpressions.append(create<AST::StringLiteral>(String {}, AST::StringLiteral::EnclosureType::None));
+        subexpressions.append(create<AST::StringLiteral>(DeprecatedString {}, AST::StringLiteral::EnclosureType::None));
     } else {
         auto start_expr = parse_expression();
         if (start_expr) {
@@ -2101,7 +2101,7 @@ RefPtr<AST::Node> Parser::parse_brace_expansion_spec()
         if (expr) {
             subexpressions.append(expr.release_nonnull());
         } else {
-            subexpressions.append(create<AST::StringLiteral>(String {}, AST::StringLiteral::EnclosureType::None));
+            subexpressions.append(create<AST::StringLiteral>(DeprecatedString {}, AST::StringLiteral::EnclosureType::None));
         }
     }
 
@@ -2123,7 +2123,7 @@ RefPtr<AST::Node> Parser::parse_heredoc_initiation_record()
     consume();
 
     HeredocInitiationRecord record;
-    record.end = "<error>"_string;
+    record.end = "<error>";
 
     RefPtr<AST::SyntaxError> syntax_error_node;
 
@@ -2163,7 +2163,7 @@ RefPtr<AST::Node> Parser::parse_heredoc_initiation_record()
         if (is_error)
             syntax_error_node = create<AST::SyntaxError>("Expected a terminating single quote"_string, true);
 
-        record.end = TRY_OR_THROW_PARSE_ERROR(String::from_utf8(text));
+        record.end = text;
         record.interpolate = false;
     } else {
         syntax_error_node = create<AST::SyntaxError>("Expected a bareword or a single-quoted string literal for heredoc end key"_string, true);
@@ -2215,7 +2215,7 @@ bool Parser::parse_heredoc_entries()
                 last_line_offset = current_position();
             // Now just wrap it in a StringLiteral and set it as the node's contents
             auto node = create<AST::StringLiteral>(
-                MUST(String::from_utf8(m_input.substring_view(rule_start->offset, last_line_offset->offset - rule_start->offset))),
+                m_input.substring_view(rule_start->offset, last_line_offset->offset - rule_start->offset),
                 AST::StringLiteral::EnclosureType::None);
             if (!found_key)
                 node->set_is_syntax_error(*create<AST::SyntaxError>(TRY_OR_RESOLVE_TO_ERROR_STRING(String::formatted("Expected to find the heredoc key '{}', but found Eof", record.end)), true));
@@ -2265,7 +2265,7 @@ bool Parser::parse_heredoc_entries()
             }
 
             if (!expr && found_key) {
-                expr = create<AST::StringLiteral>(String {}, AST::StringLiteral::EnclosureType::None);
+                expr = create<AST::StringLiteral>(DeprecatedString {}, AST::StringLiteral::EnclosureType::None);
             } else if (!expr) {
                 expr = create<AST::SyntaxError>(TRY_OR_RESOLVE_TO_ERROR_STRING(String::formatted("Expected to find a valid string inside a heredoc (with end key '{}')", record.end)), true);
             } else if (!found_key) {

@@ -6,9 +6,8 @@
 
 #pragma once
 
+#include <AK/DeprecatedString.h>
 #include <AK/GenericLexer.h>
-#include <AK/Queue.h>
-#include <AK/String.h>
 #include <AK/TemporaryChange.h>
 #include <AK/Variant.h>
 #include <AK/Vector.h>
@@ -52,7 +51,7 @@ struct CommandExpansion {
 };
 
 struct ArithmeticExpansion {
-    String expression;
+    DeprecatedString expression;
     StringBuilder value;
     ExpansionRange range;
 };
@@ -60,8 +59,8 @@ struct ArithmeticExpansion {
 using Expansion = Variant<ParameterExpansion, CommandExpansion, ArithmeticExpansion>;
 
 struct ResolvedParameterExpansion {
-    String parameter;
-    String argument;
+    DeprecatedString parameter;
+    DeprecatedString argument;
     ExpansionRange range;
     enum class Op {
         UseDefaultValue,                    // ${parameter:-word}
@@ -181,14 +180,14 @@ struct ResolvedCommandExpansion {
 };
 
 struct ResolvedArithmeticExpansion {
-    String source_expression;
+    DeprecatedString source_expression;
     ExpansionRange range;
 };
 
 using ResolvedExpansion = Variant<ResolvedParameterExpansion, ResolvedCommandExpansion, ResolvedArithmeticExpansion>;
 
 struct HeredocEntry {
-    String key;
+    DeprecatedString key;
     bool allow_interpolation;
     bool dedent;
 };
@@ -265,12 +264,12 @@ struct Token {
     };
 
     Type type;
-    String value;
+    DeprecatedString value;
     Optional<AST::Position> position;
     Vector<Expansion> expansions;
     Vector<ResolvedExpansion> resolved_expansions {};
     StringView original_text;
-    Optional<String> relevant_heredoc_key {};
+    Optional<DeprecatedString> relevant_heredoc_key {};
     bool could_be_start_of_a_simple_command { false };
 
     static ErrorOr<Vector<Token>> maybe_from_state(State const& state)
@@ -280,7 +279,7 @@ struct Token {
 
         auto token = Token {
             .type = Type::Token,
-            .value = TRY(state.buffer.to_string()),
+            .value = state.buffer.to_deprecated_string(),
             .position = state.position,
             .expansions = state.expansions,
             .original_text = {},
@@ -336,7 +335,7 @@ struct Token {
 
     static ErrorOr<Vector<Token>> operators_from(State const& state)
     {
-        auto name = TRY(state.buffer.to_string());
+        auto name = state.buffer.to_deprecated_string();
         auto type = operator_from_name(name);
         if (!type.has_value())
             return Vector<Token> {};
@@ -367,7 +366,7 @@ struct Token {
     {
         return {
             .type = Type::Newline,
-            .value = "\n"_string,
+            .value = "\n",
             .position = {},
             .expansions = {},
             .original_text = {},
@@ -378,14 +377,14 @@ struct Token {
     {
         return {
             .type = Type::Continuation,
-            .value = String::from_code_point(expected),
+            .value = StringView { &expected, 1 },
             .position = {},
             .expansions = {},
             .original_text = {},
         };
     }
 
-    static Token continuation(String expected)
+    static Token continuation(DeprecatedString expected)
     {
         return {
             .type = Type::Continuation,
@@ -409,7 +408,7 @@ public:
     ErrorOr<Vector<Token>> batch_next(Optional<Reduction> starting_reduction = {});
 
     struct HeredocKeyResult {
-        String key;
+        DeprecatedString key;
         bool allow_interpolation;
     };
 

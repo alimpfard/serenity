@@ -206,7 +206,7 @@ Lexer::HeredocKeyResult Lexer::process_heredoc_key(Token const& token)
     // NOTE: Not checking the final state as any garbage that even partially parses is allowed to be used as a key :/
 
     return {
-        .key = builder.to_string().release_value_but_fixme_should_propagate_errors(),
+        .key = builder.to_deprecated_string(),
         .allow_interpolation = !had_a_single_quote_segment,
     };
 }
@@ -556,7 +556,7 @@ ErrorOr<Lexer::ReductionResult> Lexer::reduce_start()
             if (m_lexer.consume_specific('\n')) {
                 if (entry.dedent)
                     m_lexer.ignore_while(is_any_of("\t"sv));
-                if (m_lexer.consume_specific(entry.key.bytes_as_string_view())) {
+                if (m_lexer.consume_specific(entry.key)) {
                     if (m_lexer.consume_specific('\n') || m_lexer.is_eof()) {
                         end_index = possible_end_index;
                         break;
@@ -731,7 +731,7 @@ ErrorOr<Lexer::ReductionResult> Lexer::reduce_arithmetic_expansion()
         expansion.range.length = m_state.position.end_offset - expansion.range.start - m_state.position.start_offset;
 
         return ReductionResult {
-            .tokens = { Token::continuation("$(("_string) },
+            .tokens = { Token::continuation("$((") },
             .next_reduction = m_state.previous_reduction,
         };
     }
@@ -739,7 +739,7 @@ ErrorOr<Lexer::ReductionResult> Lexer::reduce_arithmetic_expansion()
     if (m_lexer.peek() == ')' && m_state.buffer.string_view().ends_with(')')) {
         m_state.buffer.append(consume());
         auto& expansion = m_state.expansions.last().get<ArithmeticExpansion>();
-        expansion.expression = TRY(String::from_utf8(expansion.value.string_view().substring_view(0, expansion.value.length() - 1)));
+        expansion.expression = expansion.value.string_view().substring_view(0, expansion.value.length() - 1);
         expansion.value.clear();
         expansion.range.length = m_state.position.end_offset - expansion.range.start - m_state.position.start_offset;
 
@@ -842,7 +842,7 @@ ErrorOr<Lexer::ReductionResult> Lexer::reduce_command_or_arithmetic_substitution
 
     if (m_lexer.is_eof()) {
         return ReductionResult {
-            .tokens = { Token::continuation("$("_string) },
+            .tokens = { Token::continuation("$(") },
             .next_reduction = m_state.previous_reduction,
         };
     }
@@ -886,7 +886,7 @@ ErrorOr<Lexer::ReductionResult> Lexer::reduce_extended_parameter_expansion()
 
     if (m_lexer.is_eof()) {
         return ReductionResult {
-            .tokens = { Token::continuation("${"_string) },
+            .tokens = { Token::continuation("${") },
             .next_reduction = m_state.previous_reduction,
         };
     }
