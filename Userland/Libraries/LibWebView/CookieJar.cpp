@@ -63,8 +63,9 @@ ErrorOr<CookieJar> CookieJar::create(Database& database)
     statements.expire_cookie = TRY(database.prepare_statement("DELETE FROM Cookies WHERE (expiry_time < ?);"sv));
     statements.select_cookie = TRY(database.prepare_statement("SELECT * FROM Cookies WHERE ((name = ?) AND (domain = ?) AND (path = ?));"sv));
     statements.select_all_cookies = TRY(database.prepare_statement("SELECT * FROM Cookies;"sv));
+    statements.select_all_keys = TRY(database.prepare_statement("SELECT name, domain, path FROM Cookies;"sv));
 
-    return CookieJar { PersistedStorage { database, move(statements) } };
+    return CookieJar { make_ref_counted<PersistedStorage>(database, statements) };
 }
 
 CookieJar CookieJar::create()
@@ -72,11 +73,11 @@ CookieJar CookieJar::create()
     return CookieJar { TransientStorage {} };
 }
 
-CookieJar::CookieJar(PersistedStorage storage)
+CookieJar::CookieJar(NonnullRefPtr<PersistedStorage> storage)
     : m_storage(move(storage))
 {
-    auto& persisted_storage = m_storage.get<PersistedStorage>();
-    persisted_storage.database.execute_statement(persisted_storage.statements.create_table, {}, {}, {});
+    auto& persisted_storage = m_storage.get<NonnullRefPtr<PersistedStorage>>();
+    persisted_storage->database.execute_statement(persisted_storage->statements.create_table, {}, {}, {});
 }
 
 CookieJar::CookieJar(TransientStorage storage)
@@ -523,12 +524,34 @@ static ErrorOr<Web::Cookie::Cookie> parse_cookie(ReadonlySpan<SQL::Value> row)
     return cookie;
 }
 
-void CookieJar::insert_cookie_into_database(Web::Cookie::Cookie const& cookie)
+void CookieJar::PersistedStorage::dump_cookies()
 {
-    m_storage.visit(
-        [&](PersistedStorage& storage) {
-            storage.database.execute_statement(
-                storage.statements.insert_cookie, {}, [this]() { purge_expired_cookies(); }, {},
+    if (dirty_cookies.is_empty())
+        return;
+
+    auto promise = Core::Promise<Empty>::construct();
+    HashTable<CookieStorageKey> present_keys;
+
+    database.execute_statement(
+        statements.select_all_keys, [&](auto row) {
+        auto key = CookieStorageKey {
+            row[0].to_string().value(),
+            row[1].to_string().value(),
+            row[2].to_string().value()
+        };
+        present_keys.set(key); }, [&] { promise->resolve({}); }, [&](StringView error) { promise->reject(Error::from_string_view(error)); });
+
+    (void)promise->await();
+
+    for (auto& key : dirty_cookies) {
+        auto it = find(key);
+        if (!it.has_value())
+            continue;
+
+        auto& cookie = *it;
+        if (!present_keys.contains(key)) {
+            database.execute_statement(
+                statements.insert_cookie, {}, {}, {},
                 cookie.name,
                 cookie.value,
                 to_underlying(cookie.same_site),
@@ -541,19 +564,9 @@ void CookieJar::insert_cookie_into_database(Web::Cookie::Cookie const& cookie)
                 cookie.http_only,
                 cookie.host_only,
                 cookie.persistent);
-        },
-        [&](TransientStorage& storage) {
-            CookieStorageKey key { cookie.name, cookie.domain, cookie.path };
-            storage.set(key, cookie);
-        });
-}
-
-void CookieJar::update_cookie_in_database(Web::Cookie::Cookie const& cookie)
-{
-    m_storage.visit(
-        [&](PersistedStorage& storage) {
-            storage.database.execute_statement(
-                storage.statements.update_cookie, {}, [this]() { purge_expired_cookies(); }, {},
+        } else {
+            database.execute_statement(
+                statements.update_cookie, {}, {}, {},
                 cookie.value,
                 to_underlying(cookie.same_site),
                 cookie.creation_time,
@@ -566,6 +579,29 @@ void CookieJar::update_cookie_in_database(Web::Cookie::Cookie const& cookie)
                 cookie.name,
                 cookie.domain,
                 cookie.path);
+        }
+    }
+
+    dirty_cookies.clear();
+}
+
+void CookieJar::insert_cookie_into_database(Web::Cookie::Cookie const& cookie)
+{
+    m_storage.visit(
+        [&](NonnullRefPtr<PersistedStorage>& storage) {
+            storage->set({ cookie.name, cookie.domain, cookie.path }, cookie, false);
+        },
+        [&](TransientStorage& storage) {
+            CookieStorageKey key { cookie.name, cookie.domain, cookie.path };
+            storage.set(key, cookie);
+        });
+}
+
+void CookieJar::update_cookie_in_database(Web::Cookie::Cookie const& cookie)
+{
+    m_storage.visit(
+        [&](NonnullRefPtr<PersistedStorage>& storage) {
+            storage->set({ cookie.name, cookie.domain, cookie.path }, cookie, false);
         },
         [&](TransientStorage& storage) {
             CookieStorageKey key { cookie.name, cookie.domain, cookie.path };
@@ -576,14 +612,8 @@ void CookieJar::update_cookie_in_database(Web::Cookie::Cookie const& cookie)
 void CookieJar::update_cookie_last_access_time_in_database(Web::Cookie::Cookie const& cookie)
 {
     m_storage.visit(
-        [&](PersistedStorage& storage) {
-            storage.database.execute_statement(
-                storage.statements.update_cookie_last_access_time,
-                {}, {}, {},
-                cookie.last_access_time,
-                cookie.name,
-                cookie.domain,
-                cookie.path);
+        [&](NonnullRefPtr<PersistedStorage>& storage) {
+            storage->set({ cookie.name, cookie.domain, cookie.path }, cookie, false);
         },
         [&](TransientStorage& storage) {
             CookieStorageKey key { cookie.name, cookie.domain, cookie.path };
@@ -605,11 +635,16 @@ struct WrappedCookie : public RefCounted<WrappedCookie> {
 void CookieJar::select_cookie_from_database(Web::Cookie::Cookie cookie, OnCookieFound on_result, OnCookieNotFound on_complete_without_results)
 {
     m_storage.visit(
-        [&](PersistedStorage& storage) {
+        [&](NonnullRefPtr<PersistedStorage>& storage) {
+            if (auto it = storage->find({ cookie.name, cookie.domain, cookie.path }); it.has_value()) {
+                on_result(cookie, it.value());
+                return;
+            }
+
             auto wrapped_cookie = make_ref_counted<WrappedCookie>(move(cookie));
 
-            storage.database.execute_statement(
-                storage.statements.select_cookie,
+            storage->database.execute_statement(
+                storage->statements.select_cookie,
                 [on_result = move(on_result), wrapped_cookie = wrapped_cookie](auto row) {
                     if (auto selected_cookie = parse_cookie(row); selected_cookie.is_error())
                         dbgln("Failed to parse cookie '{}': {}", selected_cookie.error(), row);
@@ -618,8 +653,10 @@ void CookieJar::select_cookie_from_database(Web::Cookie::Cookie cookie, OnCookie
 
                     wrapped_cookie->had_any_results = true;
                 },
-                [on_complete_without_results = move(on_complete_without_results), wrapped_cookie = wrapped_cookie]() {
-                    if (!wrapped_cookie->had_any_results)
+                [on_complete_without_results = move(on_complete_without_results), wrapped_cookie = wrapped_cookie, &storage]() {
+                    if (wrapped_cookie->had_any_results)
+                        storage->set({ wrapped_cookie->cookie.name, wrapped_cookie->cookie.domain, wrapped_cookie->cookie.path }, wrapped_cookie->cookie, true);
+                    else
                         on_complete_without_results(move(wrapped_cookie->cookie));
                 },
                 {},
@@ -628,9 +665,7 @@ void CookieJar::select_cookie_from_database(Web::Cookie::Cookie cookie, OnCookie
                 wrapped_cookie->cookie.path);
         },
         [&](TransientStorage& storage) {
-            CookieStorageKey key { cookie.name, cookie.domain, cookie.path };
-
-            if (auto it = storage.find(key); it != storage.end())
+            if (auto it = storage.find({ cookie.name, cookie.domain, cookie.path }); it != storage.end())
                 on_result(cookie, it->value);
             else
                 on_complete_without_results(cookie);
@@ -641,9 +676,9 @@ void CookieJar::select_all_cookies_from_database(OnSelectAllCookiesResult on_res
 {
     // FIXME: Make surrounding APIs asynchronous.
     m_storage.visit(
-        [&](PersistedStorage& storage) {
-            storage.database.execute_statement(
-                storage.statements.select_all_cookies,
+        [&](NonnullRefPtr<PersistedStorage>& storage) {
+            storage->database.execute_statement(
+                storage->statements.select_all_cookies,
                 [on_result = move(on_result)](auto row) {
                     if (auto cookie = parse_cookie(row); cookie.is_error())
                         dbgln("Failed to parse cookie '{}': {}", cookie.error(), row);
@@ -664,8 +699,9 @@ void CookieJar::purge_expired_cookies()
     auto now = UnixDateTime::now();
 
     m_storage.visit(
-        [&](PersistedStorage& storage) {
-            storage.database.execute_statement(storage.statements.expire_cookie, {}, {}, {}, now);
+        [&](NonnullRefPtr<PersistedStorage>& storage) {
+            storage->database.execute_statement(storage->statements.expire_cookie, {}, {}, {}, now);
+            storage->purge_expired_cookies();
         },
         [&](TransientStorage& storage) {
             Vector<CookieStorageKey> keys_to_evict;
