@@ -12,6 +12,7 @@
 #include <AK/Span.h>
 #include <LibGfx/Size.h>
 #include <LibThreading/Forward.h>
+#include <LibThreading/ThreadPool.h>
 #include <LibVideo/Color/CodingIndependentCodePoints.h>
 #include <LibVideo/Forward.h>
 
@@ -21,6 +22,9 @@
 #include "ProbabilityTables.h"
 #include "SyntaxElementCounter.h"
 #include "TreeParser.h"
+
+// Beware, threading is unstable in Serenity with smp=on, and performs worse than with it off.
+#define VP9_TILE_THREADING
 
 namespace Video::VP9 {
 
@@ -140,7 +144,15 @@ private:
     OwnPtr<ProbabilityTables> m_probability_tables;
     Decoder& m_decoder;
 
-    Vector<NonnullOwnPtr<Threading::WorkerThread<DecoderError>>> m_worker_threads;
+#ifdef VP9_TILE_THREADING
+    struct Work {
+        Vector<TileContext, 1>& tile_column;
+        Function<DecoderErrorOr<void>(Vector<TileContext, 1>&)>& decode_tile_column;
+    };
+    Threading::ThreadPool<Work> m_thread_pool;
+    Atomic<bool> m_process_has_error { false };
+    DecoderErrorOr<void> m_process_error {};
+#endif
 };
 
 }

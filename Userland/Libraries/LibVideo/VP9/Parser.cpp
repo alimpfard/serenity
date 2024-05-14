@@ -8,7 +8,6 @@
 #include <AK/MemoryStream.h>
 #include <LibGfx/Point.h>
 #include <LibGfx/Size.h>
-#include <LibThreading/WorkerThread.h>
 
 #include "Context.h"
 #include "Decoder.h"
@@ -19,15 +18,18 @@
 #    pragma GCC optimize("O3")
 #endif
 
-// Beware, threading is unstable in Serenity with smp=on, and performs worse than with it off.
-#define VP9_TILE_THREADING
-
 namespace Video::VP9 {
 
 #define TRY_READ(expression) DECODER_TRY(DecoderErrorCategory::Corrupted, expression)
 
 Parser::Parser(Decoder& decoder)
     : m_decoder(decoder)
+#ifdef VP9_TILE_THREADING
+    , m_thread_pool([this](Work work) {
+        if (auto result = work.decode_tile_column(work.tile_column); result.is_error() && m_process_has_error.exchange(true, AK::MemoryOrder::memory_order_acq_rel))
+            m_process_error = result.release_error();
+    })
+#endif
 {
 }
 
@@ -933,7 +935,7 @@ DecoderErrorOr<void> Parser::decode_tiles(FrameContext& frame_context)
         }
     }
 
-    auto decode_tile_column = [this, tile_rows](auto& column_workloads) -> DecoderErrorOr<void> {
+    Function<DecoderErrorOr<void>(Vector<TileContext, 1>&)> decode_tile_column = [this, tile_rows](auto& column_workloads) -> DecoderErrorOr<void> {
         VERIFY(column_workloads.size() == tile_rows);
         for (auto tile_row = 0u; tile_row < tile_rows; tile_row++)
             TRY(decode_tile(column_workloads[tile_row]));
@@ -941,35 +943,20 @@ DecoderErrorOr<void> Parser::decode_tiles(FrameContext& frame_context)
     };
 
 #ifdef VP9_TILE_THREADING
-    auto const worker_count = tile_cols - 1;
-
-    if (m_worker_threads.size() < worker_count) {
-        m_worker_threads.clear();
-        m_worker_threads.ensure_capacity(worker_count);
-        for (auto i = 0u; i < worker_count; i++)
-            m_worker_threads.append(DECODER_TRY_ALLOC(Threading::WorkerThread<DecoderError>::create("Decoder Worker"sv)));
-    }
-    VERIFY(m_worker_threads.size() >= worker_count);
+    m_process_error = {};
+    m_process_has_error = false;
 
     // Start tile column decoding tasks in thread workers starting from the second column.
-    for (auto tile_col = 1u; tile_col < tile_cols; tile_col++) {
-        auto& column_workload = tile_workloads[tile_col];
-        m_worker_threads[tile_col - 1]->start_task([&decode_tile_column, &column_workload]() -> DecoderErrorOr<void> {
-            return decode_tile_column(column_workload);
-        });
-    }
+    for (auto tile_col = 1u; tile_col < tile_cols; tile_col++)
+        m_thread_pool.submit({ tile_workloads[tile_col], decode_tile_column });
 
     // Decode the first column in this thread.
-    auto result = decode_tile_column(tile_workloads[0]);
+    m_process_error = decode_tile_column(tile_workloads[0]);
 
-    for (auto& worker_thread : m_worker_threads) {
-        auto task_result = worker_thread->wait_until_task_is_finished();
-        if (!result.is_error() && task_result.is_error())
-            result = move(task_result);
-    }
+    m_thread_pool.wait_for_all();
 
-    if (result.is_error())
-        return result;
+    if (m_process_error.is_error())
+        return m_process_error.release_error();
 #else
     for (auto& column_workloads : tile_workloads)
         TRY(decode_tile_column(column_workloads));
