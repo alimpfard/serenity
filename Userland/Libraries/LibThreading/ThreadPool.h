@@ -9,6 +9,7 @@
 #include <AK/Concepts.h>
 #include <AK/Noncopyable.h>
 #include <AK/Queue.h>
+#include <LibCore/SharedCircularQueue.h>
 #include <LibCore/System.h>
 #include <LibThreading/ConditionVariable.h>
 #include <LibThreading/MutexProtected.h>
@@ -22,11 +23,13 @@ struct ThreadPoolLooper {
     {
         Optional<typename Pool::Work> entry;
         while (true) {
-            entry = pool.m_work_queue.with_locked([&](auto& queue) -> Optional<typename Pool::Work> {
-                if (queue.is_empty())
+            entry = [&]() -> Optional<typename Pool::Work> {
+                auto result = pool.m_work_queue.dequeue();
+                if (result.is_error())
                     return {};
-                return queue.dequeue();
-            });
+                return result.release_value();
+            }();
+
             if (entry.has_value())
                 break;
             if (pool.m_should_exit)
@@ -57,7 +60,8 @@ public:
 
     ThreadPool(Optional<size_t> concurrency = {})
     requires(IsFunction<Work>)
-        : m_handler([](Work work) { return work(); })
+        : m_work_queue(Core::SharedSingleProducerCircularQueue<Work, 1024>::create().release_value())
+        , m_handler([](Work work) { return work(); })
         , m_work_available(m_mutex)
         , m_work_done(m_mutex)
     {
@@ -65,7 +69,8 @@ public:
     }
 
     explicit ThreadPool(Function<void(Work)> handler, Optional<size_t> concurrency = {})
-        : m_handler(move(handler))
+        : m_work_queue(Core::SharedSingleProducerCircularQueue<Work, 1024>::create().release_value())
+        , m_handler(move(handler))
         , m_work_available(m_mutex)
         , m_work_done(m_mutex)
     {
@@ -83,16 +88,14 @@ public:
 
     void submit(Work work)
     {
-        m_work_queue.with_locked([&](auto& queue) {
-            queue.enqueue({ move(work) });
-        });
+        (void)m_work_queue.enqueue(Work { move(work) });
         m_work_available.broadcast();
     }
 
     void wait_for_all()
     {
         while (true) {
-            if (m_work_queue.with_locked([](auto& queue) { return queue.is_empty(); }))
+            if (m_work_queue.weak_used() == 0)
                 break;
             m_mutex.lock();
             m_work_done.wait();
@@ -130,7 +133,7 @@ private:
     }
 
     Vector<NonnullRefPtr<Thread>> m_workers;
-    MutexProtected<Queue<Work>> m_work_queue;
+    Core::SharedSingleProducerCircularQueue<Work, 1024> m_work_queue;
     Function<void(Work)> m_handler;
     Mutex m_mutex;
     ConditionVariable m_work_available;

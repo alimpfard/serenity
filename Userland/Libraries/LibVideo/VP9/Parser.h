@@ -146,8 +146,8 @@ private:
 
 #ifdef VP9_TILE_THREADING
     struct Work {
-        Vector<TileContext, 1>& tile_column;
-        Function<DecoderErrorOr<void>(Vector<TileContext, 1>&)>& decode_tile_column;
+        Vector<TileContext, 1>* tile_column;
+        Function<DecoderErrorOr<void>(Vector<TileContext, 1>&)>* decode_tile_column;
     };
     Threading::ThreadPool<Work> m_thread_pool;
     Atomic<bool> m_process_has_error { false };

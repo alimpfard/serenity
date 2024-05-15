@@ -85,3 +85,8 @@ BENCHMARK_CASE(vp9_clamp_reference_mvs)
 {
     decode_video("./vp9_clamp_reference_mvs.webm"sv, 92);
 }
+
+BENCHMARK_CASE(vp9_beeg)
+{
+    decode_video("/home/test/Workspace/serenity/Big_Buck_Bunny_1080_10s_30MB.webm"sv, 300);
+}

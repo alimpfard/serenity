@@ -26,7 +26,7 @@ Parser::Parser(Decoder& decoder)
     : m_decoder(decoder)
 #ifdef VP9_TILE_THREADING
     , m_thread_pool([this](Work work) {
-        if (auto result = work.decode_tile_column(work.tile_column); result.is_error() && m_process_has_error.exchange(true, AK::MemoryOrder::memory_order_acq_rel))
+        if (auto result = work.decode_tile_column->operator()(*work.tile_column); result.is_error() && m_process_has_error.exchange(true, AK::MemoryOrder::memory_order_acq_rel))
             m_process_error = result.release_error();
     })
 #endif
@@ -948,7 +948,7 @@ DecoderErrorOr<void> Parser::decode_tiles(FrameContext& frame_context)
 
     // Start tile column decoding tasks in thread workers starting from the second column.
     for (auto tile_col = 1u; tile_col < tile_cols; tile_col++)
-        m_thread_pool.submit({ tile_workloads[tile_col], decode_tile_column });
+        m_thread_pool.submit({ &tile_workloads[tile_col], &decode_tile_column });
 
     // Decode the first column in this thread.
     m_process_error = decode_tile_column(tile_workloads[0]);
