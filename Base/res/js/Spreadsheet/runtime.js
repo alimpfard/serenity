@@ -1,6 +1,10 @@
 "use strict";
 
 const Break = {};
+const PlotDataType = {
+    Range: {},
+    DataFrame: {},
+};
 
 // FIXME: Figure out a way to document non-function entities too.
 class Position {
@@ -44,7 +48,7 @@ class Position {
         return new Position(
             this.sheet.column_arithmetic(this.column, -how_many),
             this.row,
-            this.sheet
+            this.sheet,
         );
     }
 
@@ -53,7 +57,7 @@ class Position {
         return new Position(
             this.sheet.column_arithmetic(this.column, how_many),
             this.row,
-            this.sheet
+            this.sheet,
         );
     }
 
@@ -251,7 +255,7 @@ class SplitRange extends CommonRange {
     }
 
     toString() {
-        const namesFormatted = this.cells.map(cell => '"' + cell.name + '"').join(", ");
+        const namesFormatted = this.cells.map(cell => "\"" + cell.name + "\"").join(", ");
         return `SplitRange.fromNames(${namesFormatted})`;
     }
 }
@@ -301,7 +305,7 @@ class Range extends CommonRange {
         endingRow,
         columnStep,
         rowStep,
-        sheet
+        sheet,
     ) {
         super();
         // using == to account for '0' since js will parse `+'0'` to 0
@@ -309,7 +313,7 @@ class Range extends CommonRange {
             throw new Error("rowStep or columnStep is 0, this will cause an infinite loop");
         if (typeof startingRow === "string" || typeof endingRow === "string")
             throw new Error(
-                "startingRow or endingRow is a string, this will cause an infinite loop"
+                "startingRow or endingRow is a string, this will cause an infinite loop",
             );
         this.startingColumnName = startingColumnName;
         this.endingColumnName = endingColumnName;
@@ -393,8 +397,111 @@ class Range extends CommonRange {
     }
 }
 
+function ggplot(data, options = {}) {
+    return new Plot(data, options);
+}
+
+class Plot {
+    constructor(data, { hasHeader = true } = {}) {
+        this.data = data;
+        this.hasHeader = hasHeader;
+        this.mapping = {};
+        this.layers = [];
+        this.scales = [];
+        this.facets = null;
+        this.coord = null;
+    }
+
+    aes(mapping) {
+        Object.assign(this.mapping, mapping);
+        return this;
+    }
+
+    stat(type, options = {}) {
+        this.layers.push({ role: 'stat', type, options });
+        return this;
+    }
+
+    geom(type, options = {}) {
+        this.layers.push({ role: 'geom', type, options });
+        return this;
+    }
+
+    geomPoint(options = {}) {
+        return this.geom('point', options);
+    }
+
+    geomLine(options = {}) {
+        return this.geom('line', options);
+    }
+
+    scale(aes, type, options = {}) {
+        this.scales.push({ aes, type, options });
+        return this;
+    }
+
+    scaleXLog(options = {}) {
+        return this.scale('x', 'log', options);
+    }
+
+    facet(type, by, options = {}) {
+        this.facets = { type, by, options };
+        return this;
+    }
+
+    coord(type, options = {}) {
+        this.coord = { type, options };
+        return this;
+    }
+
+    toJSON() {
+        const serialize = val => {
+            if (val instanceof CommonRange) {
+                return { __range__: val.toString() };
+            }
+            return val;
+        };
+
+        // Serialize mappings
+        const mapping = {};
+        for (const [aes, val] of Object.entries(this.mapping)) {
+            mapping[aes] = serialize(val);
+        }
+
+        // Serialize layers
+        const layers = this.layers.map(layer => ({
+            role: layer.role,
+            type: layer.type,
+            options: Object.fromEntries(
+                Object.entries(layer.options).map(([k, v]) => [k, serialize(v)])
+            )
+        }));
+
+        // Serialize scales
+        const scales = this.scales.map(s => ({
+            aes: s.aes,
+            type: s.type,
+            options: Object.fromEntries(
+                Object.entries(s.options).map(([k, v]) => [k, serialize(v)])
+            )
+        }));
+
+        return JSON.stringify({
+            data: serialize(this.data),
+            hasHeader: this.hasHeader,
+            mapping,
+            layers,
+            scales,
+            facets: this.facets,
+            coord: this.coord
+        });
+    }
+}
+
+
 const R_FORMAT =
     /^(?:sheet\(("(?:[^"]|\\")*")\):)?([a-zA-Z_]+)(?:(\d+):([a-zA-Z_]+)(\d+)?(?::(\d+):(\d+))?)?$/;
+
 function R(fmt, ...args) {
     if (args.length !== 0) throw new TypeError("R`` format must be a literal");
     // done because:
@@ -404,7 +511,7 @@ function R(fmt, ...args) {
     if (Array.isArray(fmt)) fmt = fmt[0];
     if (!R_FORMAT.test(fmt))
         throw new Error(
-            'Invalid Format. Expected Format: R`A` or R`A0:A1` or R`A0:A2:1:2` or R`sheet("sheetName"):...`'
+            "Invalid Format. Expected Format: R`A` or R`A0:A1` or R`A0:A2:1:2` or R`sheet(\"sheetName\"):...`",
         );
     // Format: (sheet("sheetName"):)?Col(Row:Col(Row)?(:ColStep:RowStep)?)?
     // Ignore the first element of the match array as that will be the whole match.
@@ -422,7 +529,7 @@ function R(fmt, ...args) {
         !!endRow ? integer(endRow) : endRow,
         integer(colStep ?? 1),
         integer(rowStep ?? 1),
-        sheetFromName(sheetExpression)
+        sheetFromName(sheetExpression),
     );
 }
 
@@ -511,7 +618,7 @@ function averageIf(condition, ...cells) {
     const sumAndCount = numericReduce(
         (acc, x) => (condition(x) ? [acc[0] + x, acc[1] + 1] : acc),
         [0, 0],
-        cells
+        cells,
     );
     return sumAndCount[0] / sumAndCount[1];
 }
@@ -575,7 +682,7 @@ function variance(...cells) {
     const sumsAndSquaresAndCount = numericReduce(
         (acc, x) => [acc[0] + x, acc[1] + x * x, acc[2] + 1],
         [0, 0, 0],
-        cells
+        cells,
     );
     let sums = sumsAndSquaresAndCount[0];
     let squares = sumsAndSquaresAndCount[1];
@@ -592,7 +699,7 @@ function mode(...cells) {
             return map;
         },
         new Map(),
-        cells
+        cells,
     );
 
     let mostCommonValue = undefined;
@@ -632,7 +739,7 @@ function internal_lookup(
     lookup_outputs,
     if_missing,
     mode,
-    reference
+    reference,
 ) {
     if_missing = if_missing ?? undefined;
     const missing = () => {
@@ -692,7 +799,7 @@ function lookup(req_lookup_value, lookup_inputs, lookup_outputs, if_missing, mod
         lookup_outputs,
         if_missing,
         mode,
-        false
+        false,
     );
 }
 
@@ -761,7 +868,7 @@ repeat.__documentation = JSON.stringify({
     argnames: ["string", "count"],
     doc: "Returns a string equivalent to `string` repeated `count` times",
     examples: {
-        'repeat("a", 10)': 'Generates the string "aaaaaaaaaa"',
+        "repeat(\"a\", 10)": "Generates the string \"aaaaaaaaaa\"",
     },
 });
 
@@ -1200,7 +1307,7 @@ here.__documentation = JSON.stringify({
                 B3: {
                     kind: "Formula",
                     source: "here().up().with_column('A').name",
-                    value: '"A2"',
+                    value: "\"A2\"",
                     type: "Identity",
                 },
             },
@@ -1278,7 +1385,7 @@ reflookup.__documentation = JSON.stringify({
                 B0: {
                     kind: "Formula",
                     source: "reflookup(A0, R`B1:B5`, R`C1:C5`).value()",
-                    value: '"C"',
+                    value: "\"C\"",
                     type: "Identity",
                 },
                 C3: {
@@ -1336,7 +1443,7 @@ reflookup.__documentation = JSON.stringify({
                 B0: {
                     kind: "Formula",
                     source: "reflookup(A0, R`C2:C5`, R`B2:B5`, here(), 'nextlargest').name",
-                    value: '"B2"',
+                    value: "\"B2\"",
                     type: "Identity",
                 },
                 C3: {

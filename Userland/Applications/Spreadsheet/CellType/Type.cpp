@@ -8,6 +8,7 @@
 #include "Date.h"
 #include "Identity.h"
 #include "Numeric.h"
+#include "Plot.h"
 #include "String.h"
 #include <AK/HashMap.h>
 #include <AK/OwnPtr.h>
@@ -17,6 +18,7 @@ static Spreadsheet::StringCell s_string_cell;
 static Spreadsheet::NumericCell s_numeric_cell;
 static Spreadsheet::IdentityCell s_identity_cell;
 static Spreadsheet::DateCell s_date_cell;
+static Spreadsheet::PlotCell s_plot_cell;
 
 namespace Spreadsheet {
 

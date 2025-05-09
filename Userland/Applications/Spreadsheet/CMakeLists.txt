@@ -17,6 +17,7 @@ set(SOURCES
     CellType/Format.cpp
     CellType/Identity.cpp
     CellType/Numeric.cpp
+    CellType/Plot.cpp
     CellType/String.cpp
     CellType/Type.cpp
     CellTypeDialog.cpp
