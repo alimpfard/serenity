@@ -16,6 +16,7 @@ enum class UsagePage : u16 {
     KeyboardOrKeypad = 0x07,
     Button = 0x09,
     Consumer = 0x0c,
+    Digitizer = 0x0d,
 };
 
 enum class Usage : u32 {
@@ -53,6 +54,21 @@ enum class Usage : u32 {
     // Consumer Page (0x0c)
     // https://usb.org/sites/default/files/hut1_6.pdf#chapter.15
     ACPan = 0x000c'0238,
+
+    // Digitizer Page (0x0d)
+    // https://usb.org/sites/default/files/hut1_6.pdf#chapter.16
+    UndefinedDigitizer = 0x000d'0000,
+    Pen = 0x000d'0002,
+    TouchScreen = 0x000d'0004,
+    DataValid = 0x000d'0037,
+    TipSwitch = 0x000d'0042,
+    BarrelSwitch = 0x000d'0044,
+    TouchValid = 0x000d'0047,
+    TouchWidth = 0x000d'0048,
+    TouchHeight = 0x000d'0049,
+    ContactIdentifier = 0x000d'0051,
+    ContactCount = 0x000d'0054,
+    ScanTime = 0x000d'0056,
 };
 
 }

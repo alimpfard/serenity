@@ -121,15 +121,15 @@ void EventLoop::drain_mouse(int fd)
     bool state_is_sent = false;
     for (size_t i = 0; i < npackets; ++i) {
         auto& packet = packets[i];
-        dbgln_if(WSMESSAGELOOP_DEBUG, "EventLoop: Mouse X {}, Y {}, Z {}, W {}, relative={}", packet.x, packet.y, packet.z, packet.w, packet.is_relative);
+        dbgln("EventLoop: Mouse Buttons {:b}, X {}, Y {}, Z {}, W {}, relative={}", packet.buttons, packet.x, packet.y, packet.z, packet.w, packet.is_relative);
 
-        state.is_relative = packet.is_relative;
         if (packet.is_relative) {
             state.x += packet.x;
             state.y -= packet.y;
         } else {
             state.x = packet.x;
             state.y = packet.y;
+            state.is_relative = false;
         }
         state.w += packet.w;
         state_is_sent = false;

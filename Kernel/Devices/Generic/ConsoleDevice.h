@@ -33,11 +33,11 @@ public:
 
     void put_char(char);
 
-    CircularQueue<char, 16384> const& logbuffer() const { return m_logbuffer; }
+    CircularQueue<char, 2 * MiB> const& logbuffer() const { return m_logbuffer; }
 
 private:
     ConsoleDevice();
-    CircularQueue<char, 16384> m_logbuffer;
+    CircularQueue<char, 2 * MiB> m_logbuffer;
 };
 
 }

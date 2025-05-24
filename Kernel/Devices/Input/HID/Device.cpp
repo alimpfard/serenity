@@ -9,6 +9,7 @@
 #include <Kernel/Devices/Input/HID/Device.h>
 #include <Kernel/Devices/Input/HID/KeyboardDriver.h>
 #include <Kernel/Devices/Input/HID/MouseDriver.h>
+#include <Kernel/Devices/Input/HID/TouchDriver.h>
 
 namespace Kernel::HID {
 
@@ -35,6 +36,19 @@ ErrorOr<void> Device::initialize()
     for (auto const& application_collection : m_parsed_report_descriptor.application_collections) {
         VERIFY(application_collection.type == ::HID::CollectionType::Application);
 
+        dmesgln("Device usage={:x}:", application_collection.usage);
+        for (auto& report : application_collection.input_reports) {
+            dmesgln("  Report ID: {:x}", report.key);
+            for (auto& field : report.value.fields) {
+                dmesgln("    Field: {} {} min: {:04} max: {:04} usage: {:x}",
+                    field.is_relative ? "Relative" : "Absolute",
+                    field.is_array ? "Array" : "Variable",
+                    field.logical_minimum,
+                    field.logical_maximum,
+                    field.usage.value_or(0));
+            }
+        }
+
         using enum HID::Usage;
         switch (static_cast<HID::Usage>(application_collection.usage)) {
         case Keyboard: {
@@ -43,14 +57,23 @@ ErrorOr<void> Device::initialize()
             break;
         }
 
-        case Mouse: {
+        case Mouse:
+        case Pen: {
             auto mouse_driver = TRY(HID::MouseDriver::create(*this, application_collection));
             m_application_collection_drivers.append(move(mouse_driver));
             break;
         }
 
+        case UndefinedDigitizer:
+        case TouchScreen: {
+            auto touch_driver = TRY(HID::TouchDriver::create(*this, application_collection));
+            m_application_collection_drivers.append(move(touch_driver));
+            break;
+        }
+
         default:
             dbgln_if(HID_DEBUG, "HID: Unsupported Application Collection Usage: {:#x}", application_collection.usage);
+            dmesgln("HID: Unsupported Application Collection Usage: {:#x}", application_collection.usage);
             continue;
         }
     }

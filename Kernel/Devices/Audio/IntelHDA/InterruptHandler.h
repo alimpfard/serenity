@@ -19,11 +19,14 @@ class InterruptHandler
 public:
     static ErrorOr<NonnullRefPtr<InterruptHandler>> create(Controller& controller)
     {
+        TRY(validate_irq(controller));
         return adopt_nonnull_ref_or_enomem(new (nothrow) InterruptHandler(controller));
     }
 
     // ^PCI::IRQHandler
     virtual StringView purpose() const override { return "IntelHDA IRQ Handler"sv; }
+
+    static ErrorOr<void> validate_irq(Controller const&);
 
 private:
     InterruptHandler(Controller& controller);

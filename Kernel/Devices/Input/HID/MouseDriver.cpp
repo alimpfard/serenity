@@ -53,6 +53,7 @@ ErrorOr<void> MouseDriver::on_report(ReadonlyBytes report_data)
         // FIXME: Do we need to handle relative button items? That would mean the mouse sends us On/Off toggle events for its buttons.
         //        Mice should usually have the Absolute and Preferred State flags set.
         case Button1:
+        case TipSwitch:
             if (value == 1)
                 mouse_packet.buttons |= MousePacket::Button::LeftButton;
             else
@@ -60,6 +61,7 @@ ErrorOr<void> MouseDriver::on_report(ReadonlyBytes report_data)
             break;
 
         case Button2:
+        case BarrelSwitch:
             if (value == 1)
                 mouse_packet.buttons |= MousePacket::Button::RightButton;
             else

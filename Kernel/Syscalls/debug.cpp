@@ -28,11 +28,13 @@ ErrorOr<FlatPtr> Process::sys$dbgputstr(Userspace<char const*> characters, size_
         char buffer[1024];
         TRY(copy_from_user(buffer, characters, size));
         dbgputstr(buffer, size);
+        dmesgln("Userland: {}", StringView(buffer, size));
         return size;
     }
 
     auto string = TRY(try_copy_kstring_from_user(characters, size));
     dbgputstr(string->view());
+    dmesgln("Userland: {}", string->view());
     return string->length();
 }
 

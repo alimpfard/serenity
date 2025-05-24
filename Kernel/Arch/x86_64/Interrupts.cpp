@@ -350,7 +350,7 @@ ErrorOr<u8> reserve_interrupt_handlers(u8 number_of_irqs)
     bool found_range = false;
     u8 first_irq = 0;
     SpinlockLocker locker(s_interrupt_handler_lock);
-    for (int start_irq = 0; start_irq < GENERIC_INTERRUPT_HANDLERS_COUNT; start_irq++) {
+    for (u8 start_irq = 0; start_irq < GENERIC_INTERRUPT_HANDLERS_COUNT; start_irq++) {
         auto*& handler_slot = s_interrupt_handler[start_irq];
         VERIFY(handler_slot != nullptr);
 

@@ -74,7 +74,7 @@ public:
     static void resolution_was_changed();
     static bool emit_char_on_debug_console(char ch);
     static NonnullRefPtr<VirtualConsole> create(size_t index);
-    static NonnullRefPtr<VirtualConsole> create_with_preset_log(size_t index, CircularQueue<char, 16384> const&);
+    static NonnullRefPtr<VirtualConsole> create_with_preset_log(size_t index, CircularQueue<char, 2 * MiB> const&);
 
     virtual ~VirtualConsole() override;
 

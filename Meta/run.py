@@ -237,7 +237,7 @@ class Configuration:
 
     @property
     def usb_arguments(self) -> list[str]:
-        return ["-usb"] if self.enable_usb else []
+        return ["-usb", "-device", "usb-wacom-tablet"] if self.enable_usb else []
 
     @property
     @arguments_generator(prefix="-audiodev")

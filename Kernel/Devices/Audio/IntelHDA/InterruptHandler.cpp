@@ -16,6 +16,13 @@ InterruptHandler::InterruptHandler(Controller& controller)
     enable_irq();
 }
 
+ErrorOr<void> InterruptHandler::validate_irq(Controller const& controller)
+{
+    if (controller.device_identifier().interrupt_line().value() >= GENERIC_INTERRUPT_HANDLERS_COUNT)
+        return ENODEV;
+    return {};
+}
+
 bool InterruptHandler::handle_irq()
 {
     auto result_or_error = m_controller.handle_interrupt({});

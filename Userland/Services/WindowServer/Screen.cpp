@@ -427,6 +427,7 @@ void ScreenInput::on_receive_mouse_data(MousePacket const& packet)
     unsigned prev_buttons = m_mouse_button_state;
     m_mouse_button_state = buttons;
     unsigned changed_buttons = prev_buttons ^ buttons;
+    dbgln("Mouse event at {},{} buttons: {:b} (changed: {:b})", m_cursor_location.x(), m_cursor_location.y(), buttons, changed_buttons);
     auto post_mousedown_or_mouseup_if_needed = [&](MouseButton button) {
         if (!(changed_buttons & (unsigned)button))
             return;
