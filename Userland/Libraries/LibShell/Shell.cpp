@@ -921,7 +921,7 @@ ErrorOr<RefPtr<Job>> Shell::run_command(const AST::Command& command)
 
         if (job->is_running_in_background() && job->should_announce_exit())
             warnln("Shell: Job {} ({}) exited\n", job->job_id(), job->cmd());
-        else if (job->signaled() && job->should_announce_signal())
+        else if (job->signaled() && !job->signal_is_sigpipe_for_pipe_target() && job->should_announce_signal())
             warnln("Shell: Job {} ({}) {}\n", job->job_id(), job->cmd(), strsignal(job->termination_signal()));
 
         last_return_code = job->exit_code();

@@ -65,6 +65,8 @@ public:
     bool shell_did_continue() const { return m_shell_did_continue; }
     void unblock();
 
+    bool signal_is_sigpipe_for_pipe_target() const;
+
     Core::ElapsedTimer& timer() { return m_command_timer; }
 
     void set_has_exit(int exit_code);

@@ -102,4 +102,15 @@ void Job::unblock()
         on_exit(*this);
 }
 
+bool Job::signal_is_sigpipe_for_pipe_target() const
+{
+    if (termination_signal() != SIGPIPE)
+        return false;
+    if (!m_command)
+        return false;
+    if (m_command->is_pipe_source)
+        return false;
+    return true;
+}
+
 }
