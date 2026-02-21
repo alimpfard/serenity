@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/CharacterTypes.h>
 #include <AK/StdLibExtras.h>
 #include <LibCore/ArgsParser.h>
 #include <LibCore/System.h>
@@ -108,6 +109,25 @@ ErrorOr<int> serenity_main(Main::Arguments args)
     bool never_print_filenames = false;
     bool always_print_filenames = false;
     Vector<ByteString> files;
+
+    // Rewrite old `-N` options as `-n N` before parsing.
+    Vector<StringView> rewritten_args;
+    rewritten_args.ensure_capacity(args.strings.size());
+    bool seen_dashdash = false;
+    for (size_t i = 0; i < args.strings.size(); i++) {
+        auto arg = args.strings[i];
+        if (i > 0 && !seen_dashdash && arg == "--"sv) {
+            seen_dashdash = true;
+            rewritten_args.append(arg);
+        } else if (i > 0 && !seen_dashdash && arg.length() >= 2 && arg[0] == '-' && is_ascii_digit(arg[1])) {
+            rewritten_args.append("-n"sv);
+            rewritten_args.append(arg.substring_view(1));
+        } else {
+            rewritten_args.append(arg);
+        }
+    }
+    args.strings = rewritten_args.span();
+    args.argc = rewritten_args.size();
 
     Core::ArgsParser args_parser;
     args_parser.set_general_help("Print the beginning ('head') of a file.");
