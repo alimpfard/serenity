@@ -672,8 +672,11 @@ int Shell::run_command(StringView cmd, Optional<SourcePosition> source_position_
     (void)command->run(*this);
 
     if (!has_error(ShellError::None)) {
+        auto is_errexit = has_error(ShellError::ErrExit);
         possibly_print_error();
         take_error();
+        if (is_errexit)
+            return last_return_code.value_or(1);
         return 1;
     }
 
@@ -766,6 +769,10 @@ ErrorOr<RefPtr<Job>> Shell::run_command(const AST::Command& command)
 
     if (int local_return_code = 0; command.should_wait && TRY(run_builtin(command, rewirings, local_return_code))) {
         last_return_code = local_return_code;
+        if (should_apply_errexit(command, local_return_code)) {
+            raise_error(ShellError::ErrExit, "");
+            return nullptr;
+        }
         for (auto& next_in_chain : command.next_chain)
             run_tail(command, next_in_chain, *last_return_code);
         return nullptr;
@@ -780,6 +787,10 @@ ErrorOr<RefPtr<Job>> Shell::run_command(const AST::Command& command)
 
         if (int local_return_code = 0; invoke_function(command, local_return_code)) {
             last_return_code = local_return_code;
+            if (should_apply_errexit(command, local_return_code)) {
+                raise_error(ShellError::ErrExit, "");
+                return nullptr;
+            }
             for (auto& next_in_chain : command.next_chain)
                 run_tail(command, next_in_chain, *last_return_code);
             return nullptr;
@@ -933,6 +944,11 @@ ErrorOr<RefPtr<Job>> Shell::run_command(const AST::Command& command)
             termios = m_editor->termios();
         }
 
+        if (auto cmd = job->command_ptr(); cmd && should_apply_errexit(*cmd, job->exit_code())) {
+            raise_error(ShellError::ErrExit, "");
+            return;
+        }
+
         run_tail(job);
     };
 
@@ -1066,6 +1082,10 @@ void Shell::run_tail(RefPtr<Job> job)
 {
     if (auto cmd = job->command_ptr()) {
         deferred_invoke([=, this] {
+            if (should_apply_errexit(*cmd, job->exit_code())) {
+                raise_error(ShellError::ErrExit, "");
+                return;
+            }
             for (auto& next_in_chain : cmd->next_chain) {
                 run_tail(*cmd, next_in_chain, job->exit_code());
             }
@@ -1111,12 +1131,17 @@ Vector<NonnullRefPtr<Job>> Shell::run_commands(Vector<AST::Command>& commands)
         }
 
         auto job = job_result.release_value();
-        if (!job)
+        if (!job) {
+            if (has_any_error())
+                break;
             continue;
+        }
 
         spawned_jobs.append(*job);
         if (command.should_wait) {
             block_on_job(job);
+            if (has_any_error())
+                break;
         } else {
             job->set_running_in_background(true);
             if (!command.is_pipe_source && command.should_notify_if_in_background)
@@ -2479,6 +2504,23 @@ void Shell::kill_job(Job const* job, int sig)
     }
 }
 
+bool Shell::should_apply_errexit(const AST::Command& command, int exit_code) const
+{
+    if (!options.errexit || exit_code == 0)
+        return false;
+
+    if (command.is_pipe_source)
+        return false;
+
+    if (!command.next_chain.is_empty()) {
+        auto action = command.next_chain.first().action;
+        if (action == AST::NodeWithAction::And || action == AST::NodeWithAction::Or)
+            return false;
+    }
+
+    return true;
+}
+
 void Shell::possibly_print_error() const
 {
     switch (m_error) {
@@ -2505,6 +2547,7 @@ void Shell::possibly_print_error() const
     case ShellError::WriteFailure:
         warnln("Shell: write() failed for {}", m_error_description);
         break;
+    case ShellError::ErrExit:
     case ShellError::InternalControlFlowBreak:
     case ShellError::InternalControlFlowContinue:
     case ShellError::InternalControlFlowReturn:

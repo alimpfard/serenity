@@ -71,7 +71,8 @@
 #define ENUMERATE_SHELL_OPTIONS()                                                                                    \
     __ENUMERATE_SHELL_OPTION(inline_exec_keep_empty_segments, false, "Keep empty segments in inline execute $(...)") \
     __ENUMERATE_SHELL_OPTION(verbose, false, "Announce every command that is about to be executed")                  \
-    __ENUMERATE_SHELL_OPTION(invoke_program_for_autocomplete, false, "Attempt to use the program being completed itself for autocompletion via --complete")
+    __ENUMERATE_SHELL_OPTION(invoke_program_for_autocomplete, false, "Attempt to use the program being completed itself for autocompletion via --complete") \
+    __ENUMERATE_SHELL_OPTION(errexit, false, "Exit immediately when a command exits with non-zero status")
 
 #define ENUMERATE_SHELL_IMMEDIATE_FUNCTIONS()                          \
     __ENUMERATE_SHELL_IMMEDIATE_FUNCTION(concat_lists)                 \
@@ -374,6 +375,7 @@ public:
         LaunchError,
         PipeFailure,
         WriteFailure,
+        ErrExit,
     };
 
     void raise_error(ShellError kind, ByteString description, Optional<AST::Position> position = {})
@@ -394,6 +396,7 @@ public:
         return err;
     }
     void possibly_print_error() const;
+    bool should_apply_errexit(const AST::Command& command, int exit_code) const;
     static bool is_control_flow(ShellError error)
     {
         switch (error) {
@@ -402,6 +405,7 @@ public:
         case ShellError::InternalControlFlowReturn:
         case ShellError::InternalControlFlowInterrupted:
         case ShellError::InternalControlFlowKilled:
+        case ShellError::ErrExit:
             return true;
         default:
             return false;

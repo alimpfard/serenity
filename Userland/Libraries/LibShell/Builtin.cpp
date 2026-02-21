@@ -1453,6 +1453,168 @@ ErrorOr<int> Shell::builtin_set(Main::Arguments arguments)
         return 0;
     }
 
+    if (m_in_posix_mode) {
+        auto warn_unimplemented = [](StringView option_name) { warnln("set: '{}' is not yet implemented, ignoring", option_name); };
+
+        auto apply_option = [&](char flag, bool enable) -> bool {
+            switch (flag) {
+            case 'x':
+                options.verbose = enable;
+                return true;
+            case 'e':
+                options.errexit = enable;
+                return true;
+            case 'u':
+                warn_unimplemented("nounset"sv);
+                return true;
+            case 'v':
+                warn_unimplemented("verbose"sv);
+                return true;
+            case 'f':
+                warn_unimplemented("noglob"sv);
+                return true;
+            case 'n':
+                warn_unimplemented("noexec"sv);
+                return true;
+            case 'a':
+                warn_unimplemented("allexport"sv);
+                return true;
+            case 'b':
+                warn_unimplemented("notify"sv);
+                return true;
+            case 'C':
+                warn_unimplemented("noclobber"sv);
+                return true;
+            case 'h': // noop.
+                return true;
+            case 'm':
+                warn_unimplemented("monitor"sv);
+                return true;
+            default:
+                warnln("set: unknown option: '-{}'", flag);
+                return false;
+            }
+        };
+
+        struct POSIXOption {
+            StringView name;
+            char short_flag;
+        };
+
+        static constexpr POSIXOption posix_options[] = {
+            { "allexport"sv, 'a' },
+            { "errexit"sv, 'e' },
+            { "hashall"sv, 'h' },
+            { "monitor"sv, 'm' },
+            { "noclobber"sv, 'C' },
+            { "noexec"sv, 'n' },
+            { "noglob"sv, 'f' },
+            { "notify"sv, 'b' },
+            { "nounset"sv, 'u' },
+            { "verbose"sv, 'v' },
+            { "xtrace"sv, 'x' },
+        };
+
+        auto option_is_enabled = [&](char flag) -> bool {
+            if (flag == 'x')
+                return options.verbose;
+            if (flag == 'e')
+                return options.errexit;
+            return false;
+        };
+
+        auto apply_long_option = [&](StringView name, bool enable) -> bool {
+            for (auto& opt : posix_options) {
+                if (name == opt.name)
+                    return apply_option(opt.short_flag, enable);
+            }
+            warnln("set: unknown option: '{}'", name);
+            return false;
+        };
+
+        auto list_options = [&](bool as_commands) {
+            for (auto& opt : posix_options) {
+                bool is_set = option_is_enabled(opt.short_flag);
+                if (as_commands)
+                    outln("set {} {}", is_set ? "-o" : "+o", opt.name);
+                else
+                    outln("{:<15} {}", opt.name, is_set ? "on" : "off");
+            }
+        };
+
+        bool set_positional_args = false;
+        Vector<StringView> positional_args;
+
+        for (size_t i = 1; i < arguments.strings.size(); ++i) {
+            auto arg = arguments.strings[i];
+
+            // "set --" signals end of options; remaining args become positional parameters.
+            // With no following args, this clears all positional parameters.
+            if (arg == "--"sv) {
+                set_positional_args = true;
+                for (++i; i < arguments.strings.size(); ++i)
+                    positional_args.append(arguments.strings[i]);
+                break;
+            }
+
+            // "set -" turns off -x and -v (POSIX).
+            if (arg == "-"sv) {
+                options.verbose = false;
+                break;
+            }
+
+            if ((arg.starts_with('-') || arg.starts_with('+')) && arg.length() > 1) {
+                bool enable = arg[0] == '-';
+                auto flags = arg.substring_view(1);
+
+                for (size_t j = 0; j < flags.length(); ++j) {
+                    auto ch = flags[j];
+
+                    if (ch == 'o') {
+                        // Consume remaining characters in this group as the option name,
+                        // or use the next argument (POSIX getopt semantics).
+                        auto remaining = flags.substring_view(j + 1);
+                        StringView option_name;
+                        if (!remaining.is_empty()) {
+                            option_name = remaining;
+                        } else if (i + 1 < arguments.strings.size()) {
+                            option_name = arguments.strings[++i];
+                        } else {
+                            // No option name: list all options.
+                            // -o lists human-readable, +o lists re-inputtable commands.
+                            list_options(/* as_commands = */ !enable);
+                            return 0;
+                        }
+                        if (!apply_long_option(option_name, enable))
+                            return 1;
+                        break; // Done with this flag group.
+                    }
+
+                    if (!apply_option(ch, enable))
+                        return 1;
+                }
+                continue;
+            }
+
+            // First non-option argument: this and all remaining args are positional parameters.
+            set_positional_args = true;
+            positional_args.append(arg);
+            for (++i; i < arguments.strings.size(); ++i)
+                positional_args.append(arguments.strings[i]);
+            break;
+        }
+
+        if (set_positional_args) {
+            Vector<String> argv;
+            argv.ensure_capacity(positional_args.size());
+            for (auto& arg : positional_args)
+                argv.unchecked_append(TRY(String::from_utf8(arg)));
+            set_local_variable("ARGV", AST::make_ref_counted<AST::ListValue>(move(argv)));
+        }
+
+        return 0;
+    }
+
     Vector<StringView> argv_to_set;
 
     Core::ArgsParser parser;
