@@ -8,6 +8,10 @@
 #include <AK/LexicalPath.h>
 #include <LibFileSystem/FileSystem.h>
 #include <LibFileSystemAccessClient/Client.h>
+
+#ifndef ESUCCESS
+#    define ESUCCESS 0
+#endif
 #include <LibGUI/ConnectionToWindowServer.h>
 #include <LibGUI/MessageBox.h>
 #include <LibGUI/Window.h>

@@ -227,10 +227,8 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
 {
     TRY(Core::System::pledge("stdio tty rpath cpath wpath recvfd sendfd proc exec unix sigaction"));
 
-    struct sigaction act;
-    act.sa_mask = 0;
-    // Do not trust that both function pointers overlap.
-    act.sa_sigaction = nullptr;
+    struct sigaction act = {};
+    sigemptyset(&act.sa_mask);
 
     act.sa_flags = SA_NOCLDWAIT;
     act.sa_handler = SIG_IGN;
@@ -272,7 +270,8 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
     }
 
     auto ptsname = TRY(Core::System::ptsname(ptm_fd));
-    TRY(utmp_update(ptsname, shell_pid, true));
+    if (auto result = utmp_update(ptsname, shell_pid, true); result.is_error())
+        dbgln("Terminal: utmp_update failed: {}", result.error());
 
     auto app_icon = GUI::Icon::default_icon("app-terminal"sv);
 
@@ -356,10 +355,11 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
 
     auto shell_child_process_count = [&] {
         int background_process_count = 0;
-        Core::Directory::for_each_entry(String::formatted("/proc/{}/children", shell_pid).release_value_but_fixme_should_propagate_errors(), Core::DirIterator::Flags::SkipParentAndBaseDir, [&](auto&, auto&) {
+        auto path = String::formatted("/proc/{}/children", shell_pid).release_value_but_fixme_should_propagate_errors();
+        (void)Core::Directory::for_each_entry(path, Core::DirIterator::Flags::SkipParentAndBaseDir, [&](auto&, auto&) {
             ++background_process_count;
             return IterationDecision::Continue;
-        }).release_value_but_fixme_should_propagate_errors();
+        });
         return background_process_count;
     };
 

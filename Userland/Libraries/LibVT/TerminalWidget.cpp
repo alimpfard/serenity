@@ -1110,7 +1110,9 @@ void TerminalWidget::beep()
         return;
     }
     if (m_bell_mode == BellMode::AudibleBeep) {
+#ifdef AK_OS_SERENITY
         [[maybe_unused]] auto ret_val = Core::System::beep();
+#endif
         return;
     }
     m_visual_beep_timer->restart(200);

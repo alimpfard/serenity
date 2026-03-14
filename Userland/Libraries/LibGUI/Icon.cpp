@@ -6,6 +6,7 @@
  */
 
 #include <AK/ByteString.h>
+#include <LibCore/Resource.h>
 #include <LibGUI/Icon.h>
 #include <LibGfx/Bitmap.h>
 
@@ -75,7 +76,10 @@ void IconImpl::set_bitmap_for_size(int size, RefPtr<Gfx::Bitmap const>&& bitmap)
 
 Icon Icon::default_icon(StringView name)
 {
-    return MUST(try_create_default_icon(name));
+    auto result = try_create_default_icon(name);
+    if (result.is_error())
+        return Icon();
+    return result.release_value();
 }
 
 ErrorOr<Icon> Icon::try_create_default_icon(StringView name)
@@ -86,6 +90,17 @@ ErrorOr<Icon> Icon::try_create_default_icon(StringView name)
         bitmap16 = bitmap_or_error.release_value();
     if (auto bitmap_or_error = Gfx::Bitmap::load_from_file(ByteString::formatted("/res/icons/32x32/{}.png", name)); !bitmap_or_error.is_error())
         bitmap32 = bitmap_or_error.release_value();
+#ifndef AK_OS_SERENITY
+    // On non-Serenity, try loading via resource:// scheme if /res didn't work
+    if (!bitmap16) {
+        if (auto resource = Core::Resource::load_from_uri(MUST(String::formatted("resource://icons/16x16/{}.png", name))); !resource.is_error())
+            bitmap16 = Gfx::Bitmap::load_from_file(resource.value()->filesystem_path().to_byte_string()).release_value_but_fixme_should_propagate_errors();
+    }
+    if (!bitmap32) {
+        if (auto resource = Core::Resource::load_from_uri(MUST(String::formatted("resource://icons/32x32/{}.png", name))); !resource.is_error())
+            bitmap32 = Gfx::Bitmap::load_from_file(resource.value()->filesystem_path().to_byte_string()).release_value_but_fixme_should_propagate_errors();
+    }
+#endif
 
     if (!bitmap16 && !bitmap32) {
         dbgln("Default icon not found: {}", name);

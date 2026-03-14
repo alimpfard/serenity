@@ -5,6 +5,7 @@
  */
 
 #include <AK/Debug.h>
+#include <climits>
 #include <AK/HashMap.h>
 #include <AK/IDAllocator.h>
 #include <AK/JsonObject.h>

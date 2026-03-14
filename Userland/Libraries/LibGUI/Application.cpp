@@ -4,9 +4,14 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/LexicalPath.h>
 #include <AK/NeverDestroyed.h>
 #include <LibConfig/Client.h>
 #include <LibCore/EventLoop.h>
+#include <LibCore/ResourceImplementation.h>
+#include <LibCore/ResourceImplementationFile.h>
+#include <LibCore/System.h>
+#include <LibGfx/Font/FontDatabase.h>
 #include <LibGUI/Action.h>
 #include <LibGUI/Application.h>
 #include <LibGUI/Clipboard.h>
@@ -77,6 +82,25 @@ ErrorOr<NonnullRefPtr<Application>> Application::create(Main::Arguments const& a
     *s_the = *application;
 
     application->m_event_loop = TRY(try_make<Core::EventLoop>());
+
+#ifndef AK_OS_SERENITY
+    // Set up resource path for Lagom builds
+    {
+        auto* source_dir = getenv("SERENITY_SOURCE_DIR");
+        String resource_root;
+        if (source_dir) {
+            resource_root = MUST(String::formatted("{}/Base/res", source_dir));
+        } else {
+            auto exe_path = MUST(Core::System::readlink("/proc/self/exe"sv));
+            auto exe_dir = LexicalPath(exe_path).parent().string();
+            resource_root = MUST(String::formatted("{}/../Root/res", exe_dir));
+        }
+        Core::ResourceImplementation::install(make<Core::ResourceImplementationFile>(resource_root));
+        Gfx::FontDatabase::set_default_font_query("Liberation Sans 10 400 0"sv);
+        Gfx::FontDatabase::set_fixed_width_font_query("Liberation Mono 10 400 0"sv);
+        Gfx::FontDatabase::set_window_title_font_query("Liberation Sans 10 700 0"sv);
+    }
+#endif
 
     ConnectionToWindowServer::the();
     TRY(Clipboard::initialize({}));
